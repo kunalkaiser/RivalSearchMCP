@@ -1,53 +1,52 @@
 # Triage Guide
 
-How issues and PRs flow through the RivalSearchMCP repository.
+How issues and PRs flow through RivalSearchMCP.
 
 ## Label taxonomy
 
-The canonical source is `.github/labels.yml`. Four namespaces:
+Canonical source: [`.github/labels.yml`](../.github/labels.yml). Four namespaces.
 
-| Namespace | Purpose | Pick |
+| Namespace | Labels | Pick |
 |---|---|---|
-| `type:*` | What kind of work it is | one |
-| `P0..P3` | Priority | one |
-| `tool:*` | Which MCP tool it touches | zero or more |
-| `status:*` | Where it is in the workflow | one |
+| **Type** | 🐛 Bug · ✨ Feature Request · ❓ Question · 💬 Feedback | one |
+| **Priority** | 🔥 High · 🟡 Medium · 🟢 Low · 🗺️ Roadmap | one |
+| **Tool** | `tool:web_search`, `tool:social_search`, `tool:scientific_research`, `tool:news_aggregation`, `tool:github_search`, `tool:content_operations`, `tool:research_topic`, `tool:research_memory`, `tool:map_website`, `tool:document_analysis` | zero or more |
+| **Status** | `status:in-progress` · `status:blocked` | zero or one (apply only when in motion) |
 
 ### Type
 
-- **`type:bug`** — Documented behavior doesn't match actual behavior.
-- **`type:feature`** — Wholly new capability that didn't exist before.
-- **`type:enhancement`** — Improvement to existing functionality.
-- **`type:docs`** — Documentation-only changes.
-- **`type:chore`** — Repo plumbing, deps, config, CI.
-- **`type:refactor`** — Restructure without behavior change.
+- **🐛 Bug** — Documented behavior doesn't match actual behavior.
+- **✨ Feature Request** — New capability, or improvement to existing capability.
+- **❓ Question** — Needs clarification or more information before it's actionable.
+- **💬 Feedback** — User-experience observation. Often turns into one or more of the above after discussion.
 
 ### Priority
 
-- **`P0-critical`** — Production-breaking or a default tool returns zero useful results. Drop everything.
-- **`P1-high`** — Significant functionality degraded; should fix this iteration.
-- **`P2-medium`** — Should fix soon but workarounds exist.
-- **`P3-low`** — Nice-to-have, no clear timeline.
+- **🔥 High** — Must fix this iteration. A default MCP tool is broken; a security/correctness issue; or a deal-breaker for adoption.
+- **🟡 Medium** — Should fix soon. Workarounds exist or the impact is partial.
+- **🟢 Low** — Nice to have. No clear timeline.
+- **🗺️ Roadmap** — Future direction we like but haven't committed to. Stays here until it earns a priority.
 
 ### Tool / area
 
-One label per MCP tool the change touches. A PR that updates two tools gets two `tool:*` labels. Pull from the list in `.github/labels.yml`.
+One label per MCP tool the issue or PR touches. A PR that changes two tools gets both. The list lives in `.github/labels.yml`.
 
 ### Status
 
-- **`status:needs-triage`** — Default for fresh issues.
+Apply **only when work is in motion**. An issue with no `status:*` label is implicitly in the backlog. The status label gets removed when the work merges or is parked.
+
 - **`status:in-progress`** — Someone is actively working on it.
-- **`status:blocked`** — Cannot proceed until another issue is resolved.
+- **`status:blocked`** — Can't proceed until another issue resolves.
 
 ## Workflow
 
-1. **Issue opened** → bot (or maintainer) applies `type:*`, `tool:*`, and either `status:needs-triage` or a priority.
+1. **Issue opened** → label with `Type`, `Tool` (if applicable), `Priority` (or 🗺️ Roadmap if uncommitted).
 2. **Work begins** → assignee added, `status:in-progress` applied.
-3. **PR opened** → references the issue with `Fixes #N`, inherits `tool:*` labels via the path-based auto-labeler.
-4. **PR merged** → issue auto-closes via the `Fixes #N` link.
+3. **PR opened** → references the issue with `Fixes #N`. The path-based auto-labeler applies `tool:*` automatically.
+4. **PR merged** → issue auto-closes; `status:*` labels removed automatically (or by the closer).
 
-## Quick triage rules of thumb
+## Quick rules
 
-- A MCP tool returning **0 results** when documented to work → `P0-critical` or `P1-high` depending on how many users hit it.
-- Schema/contract change visible to clients → must include `type:feature` or `type:enhancement` and updated docs.
-- Anything touching `src/core/<area>/` should get `tool:<area>` automatically once the path-based labeler is wired up.
+- An MCP tool returning **zero results** when documented to work → 🐛 Bug + 🔥 High.
+- A "would be cool if…" with no concrete user → 💬 Feedback + 🗺️ Roadmap. Promote later if it sticks.
+- Anything in `src/core/<area>/` should automatically pick up the corresponding `tool:<area>` label via the path-based labeler.

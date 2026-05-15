@@ -1,48 +1,41 @@
 # Canonical label taxonomy for RivalSearchMCP.
 #
 # Source of truth: this file. To sync labels to GitHub from this file, run
-# the EndBug/label-sync action (or any equivalent) — see
-# https://github.com/EndBug/label-sync.
+# the EndBug/label-sync action — see https://github.com/EndBug/label-sync.
 #
 # Conventions:
-#   type:*    What kind of work it is (mutually exclusive in practice)
-#   P0..P3    Priority (mutually exclusive)
-#   tool:*    Which MCP tool the issue/PR touches (multiple allowed)
-#   status:*  Where it is in the workflow (mutually exclusive in practice)
+#   Type      (pick 1)  — 🐛 Bug · ✨ Feature Request · ❓ Question · 💬 Feedback
+#   Priority  (pick 1)  — 🔥 High · 🟡 Medium · 🟢 Low · 🗺️ Roadmap
+#   tool:*    (multi)   — which MCP tool the work touches
+#   status:*  (pick 1)  — only if actively in motion (in-progress / blocked)
 
 # ───── Type ─────
-- name: "type:bug"
+- name: "🐛 Bug"
   color: "d73a4a"
   description: "Something isn't working as documented"
-- name: "type:feature"
-  color: "84b6eb"
-  description: "New feature or capability"
-- name: "type:enhancement"
-  color: "a2eeef"
-  description: "Improvement to existing functionality"
-- name: "type:docs"
-  color: "0075ca"
-  description: "Documentation changes"
-- name: "type:chore"
-  color: "fef2c0"
-  description: "Repo plumbing, deps, config"
-- name: "type:refactor"
-  color: "fef2c0"
-  description: "Restructure without behavior change"
+- name: "✨ Feature Request"
+  color: "1d76db"
+  description: "New capability or improvement"
+- name: "❓ Question"
+  color: "cc317c"
+  description: "Awaiting clarification or info"
+- name: "💬 Feedback"
+  color: "f97316"
+  description: "User-experience feedback or observation"
 
 # ───── Priority ─────
-- name: "P0-critical"
+- name: "🔥 High"
   color: "b60205"
-  description: "Drop everything and fix"
-- name: "P1-high"
-  color: "d93f0b"
   description: "Must fix this iteration"
-- name: "P2-medium"
+- name: "🟡 Medium"
   color: "fbca04"
   description: "Should fix soon"
-- name: "P3-low"
-  color: "c5def5"
+- name: "🟢 Low"
+  color: "2da44e"
   description: "Nice to have"
+- name: "🗺️ Roadmap"
+  color: "8957e5"
+  description: "Future / not committed yet"
 
 # ───── Tool / area (one per MCP tool) ─────
 - name: "tool:web_search"
@@ -76,27 +69,21 @@
   color: "1d76db"
   description: "Affects document_analysis MCP tool"
 
-# ───── Status ─────
-- name: "status:needs-triage"
-  color: "c2e0c6"
-  description: "Awaiting initial review"
-- name: "status:blocked"
-  color: "d4c5f9"
-  description: "Cannot proceed until dependency resolved"
+# ───── Status (apply only when actively moving) ─────
 - name: "status:in-progress"
   color: "0e8a16"
   description: "Active work"
+- name: "status:blocked"
+  color: "d4c5f9"
+  description: "Cannot proceed until dependency resolved"
 
-# ───── Community / discoverability (defaults) ─────
+# ───── Community / discoverability (GitHub defaults, kept) ─────
 - name: "good first issue"
   color: "7057ff"
   description: "Good for newcomers"
 - name: "help wanted"
   color: "008672"
   description: "Extra attention is needed"
-- name: "question"
-  color: "d876e3"
-  description: "Further information is requested"
 - name: "duplicate"
   color: "cfd3d7"
   description: "This issue or pull request already exists"
