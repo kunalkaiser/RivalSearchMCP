@@ -10,32 +10,34 @@
 #   status:*  (pick 1)  — only if actively in motion (in-progress / blocked)
 
 # ───── Type ─────
+# Descriptions intentionally left empty — emoji + name is self-explanatory and
+# clearing them removes visual noise from the issue list / a11y view.
 - name: "🐛 Bug"
   color: "d73a4a"
-  description: "Something isn't working as documented"
+  description: ""
 - name: "✨ Feature Request"
   color: "1d76db"
-  description: "New capability or improvement"
+  description: ""
 - name: "❓ Question"
   color: "cc317c"
-  description: "Awaiting clarification or info"
+  description: ""
 - name: "💬 Feedback"
   color: "f97316"
-  description: "User-experience feedback or observation"
+  description: ""
 
 # ───── Priority ─────
 - name: "🔥 High"
   color: "b60205"
-  description: "Must fix this iteration"
+  description: ""
 - name: "🟡 Medium"
   color: "fbca04"
-  description: "Should fix soon"
+  description: ""
 - name: "🟢 Low"
   color: "2da44e"
-  description: "Nice to have"
+  description: ""
 - name: "🗺️ Roadmap"
   color: "8957e5"
-  description: "Future / not committed yet"
+  description: ""
 
 # ───── Tool / area (one per MCP tool) ─────
 - name: "tool:web_search"
@@ -72,10 +74,10 @@
 # ───── Status (apply only when actively moving) ─────
 - name: "status:in-progress"
   color: "0e8a16"
-  description: "Active work"
+  description: ""
 - name: "status:blocked"
   color: "d4c5f9"
-  description: "Cannot proceed until dependency resolved"
+  description: ""
 
 # ───── Community / discoverability (GitHub defaults, kept) ─────
 - name: "good first issue"
