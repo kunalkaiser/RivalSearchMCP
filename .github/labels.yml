@@ -5,7 +5,7 @@
 #
 # Conventions:
 #   Type      (pick 1)  — 🐛 Bug · ✨ Feature Request · ❓ Question · 💬 Feedback
-#   Priority  (pick 1)  — 🔥 High · 🟡 Medium · 🟢 Low · 🗺️ Roadmap
+#   Priority  (pick 1)  — 🔥 High · 🟡 Medium · 🟢 Low · 🔮 Roadmap
 #   tool:*    (multi)   — which MCP tool the work touches
 #   status:*  (pick 1)  — only if actively in motion (in-progress / blocked)
 
@@ -35,7 +35,7 @@
 - name: "🟢 Low"
   color: "2da44e"
   description: ""
-- name: "🗺️ Roadmap"
+- name: "🔮 Roadmap"
   color: "8957e5"
   description: ""
 
