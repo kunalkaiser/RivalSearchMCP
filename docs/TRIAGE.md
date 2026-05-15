@@ -42,11 +42,23 @@ Apply **only when work is in motion**. An issue with no `status:*` label is impl
 
 1. **Issue opened** → label with `Type`, `Tool` (if applicable), `Priority` (or 🔮 Roadmap if uncommitted).
 2. **Work begins** → assignee added, `status:in-progress` applied.
-3. **PR opened** → references the issue with `Fixes #N`. The path-based auto-labeler applies `tool:*` automatically.
-4. **PR merged** → issue auto-closes; `status:*` labels removed automatically (or by the closer).
+3. **PR opened** → references the issue with `Fixes #N`.
+4. **PR merged** → issue auto-closes; `status:*` labels are removed by the closer.
 
 ## Quick rules
 
 - An MCP tool returning **zero results** when documented to work → 🐛 Bug + 🔥 High.
 - A "would be cool if…" with no concrete user → 💬 Feedback + 🔮 Roadmap. Promote later if it sticks.
-- Anything in `src/core/<area>/` should automatically pick up the corresponding `tool:<area>` label via the path-based labeler.
+- A PR that touches `src/core/<area>/` should carry the matching `tool:<area>` label.
+
+## Automation
+
+Source-of-truth labels live in [`.github/labels.yml`](../.github/labels.yml). A
+sync workflow keeps the live repo in agreement with that file: edit the YAML,
+open a PR, and on merge the labels are reconciled automatically.
+
+Coming in follow-up PRs (tracked in the management issues):
+
+- Path-based PR auto-labeler — applies `tool:*` from changed file paths.
+- `@claude` triage on issue open — applies `Type` / `tool:*` / priority on the way in.
+- CODEOWNERS — auto-request reviewers per directory.
