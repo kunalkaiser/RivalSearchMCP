@@ -1,13 +1,8 @@
 """
 Bluesky search via the AT Protocol public endpoint.
 
-Uses api.bsky.app/xrpc/app.bsky.feed.searchPosts which does real
-full-text search over public posts, requires no authentication, and
-returns posts with author, text, engagement counts, and timestamps.
-
-Note: `public.api.bsky.app` (the historically-documented host) now
-returns 403 for this method; `api.bsky.app` is the working endpoint
-as of late 2025.
+api.bsky.app is the working host. public.api.bsky.app now returns 403
+for app.bsky.feed.searchPosts.
 """
 
 from typing import Any, Dict, List, Optional
@@ -15,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from src.logging.logger import logger
+from src.utils.query import normalize_search_query
 
 _API_BASE = "https://api.bsky.app/xrpc"
 
@@ -25,9 +21,7 @@ class BlueskySearch:
     def __init__(self):
         self.api_url = _API_BASE
         self.headers = {
-            "User-Agent": (
-                "rivalsearchmcp/1.0 (+https://github.com/damionrashford/RivalSearchMCP)"
-            ),
+            "User-Agent": "rivalsearchmcp/1.0 (+https://github.com/damionrashford/RivalSearchMCP)",
             "Accept": "application/json",
         }
 
@@ -39,16 +33,16 @@ class BlueskySearch:
         lang: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Search Bluesky posts.
-
         Args:
-            query: Search query
-            limit: Max results (1..100)
             sort: "top" or "latest"
-            lang: Optional ISO 639-1 language filter (e.g., "en")
+            lang: ISO 639-1 language filter, e.g. "en"
         """
+        normalized = normalize_search_query(query, max_terms=3)
+        if normalized != query:
+            logger.debug("Bluesky query normalized: %r -> %r", query, normalized)
+
         params: Dict[str, Any] = {
-            "q": query,
+            "q": normalized,
             "limit": max(1, min(limit, 100)),
             "sort": sort,
         }
@@ -72,21 +66,18 @@ class BlueskySearch:
                     return []
 
                 data = response.json()
-                posts = data.get("posts", [])
                 results: List[Dict[str, Any]] = []
-                for p in posts:
+                for p in data.get("posts", []):
                     author = p.get("author") or {}
                     record = p.get("record") or {}
-                    # Convert AT URI (at://did/collection/rkey) to a bsky.app URL.
                     uri = p.get("uri", "")
                     bsky_url = ""
                     if uri.startswith("at://"):
+                        # at://did/app.bsky.feed.post/rkey -> bsky.app URL
                         parts = uri[len("at://") :].split("/")
                         if len(parts) >= 3:
-                            did = parts[0]
-                            rkey = parts[2]
-                            handle = author.get("handle") or did
-                            bsky_url = f"https://bsky.app/profile/{handle}/post/{rkey}"
+                            handle = author.get("handle") or parts[0]
+                            bsky_url = f"https://bsky.app/profile/{handle}/post/{parts[2]}"
                     results.append(
                         {
                             "text": record.get("text", ""),
@@ -106,7 +97,7 @@ class BlueskySearch:
                 return results
 
         except httpx.HTTPError as e:
-            logger.warning("Bluesky search failed (network): %s", e)
+            logger.warning("Bluesky search failed: %s", e)
             return []
         except Exception:
             logger.exception("Bluesky search failed (unexpected)")

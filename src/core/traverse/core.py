@@ -10,9 +10,10 @@ from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urljoin, urlparse
 
 import httpx
+from scrapling.parser import Selector
 
 from src.logging.logger import logger
-from src.utils import clean_html_to_markdown, clean_text, create_soup
+from src.utils import clean_html_to_markdown, clean_text
 
 # Configuration
 MAX_DEPTH = 3
@@ -119,52 +120,37 @@ class WebsiteTraverser:
     def _extract_title(self, html: str) -> str:
         """Extract page title from HTML."""
         try:
-            soup = create_soup(html)
-            title_tag = soup.find("title")
-            if title_tag:
-                return clean_text(title_tag.get_text())
-            return ""
+            el = Selector(content=html).css_first("title")
+            return clean_text(el.get_all_text(strip=True)) if el else ""
         except Exception:
             return ""
 
     def _extract_content(self, html: str) -> str:
         """Extract main content from HTML."""
         try:
-            # Use the new content processing to get clean markdown
-            clean_content = clean_html_to_markdown(html)
-            return clean_content
-
+            return clean_html_to_markdown(html)
         except Exception:
             return ""
 
     def _extract_links(self, html: str, base_url: str) -> List[str]:
         """Extract links from HTML."""
-        links = []
         try:
-            soup = create_soup(html)
-
-            for link in soup.find_all("a", href=True):
-                href = link.get("href")  # type: ignore
-                if href:
-                    # Convert relative URLs to absolute
-                    absolute_url = urljoin(base_url, str(href))
-
-                    # Filter out non-HTTP links and external domains
-                    if absolute_url.startswith("http") and self._is_same_domain(
-                        base_url, absolute_url
-                    ):
-                        links.append(absolute_url)
-
-            # Remove duplicates while preserving order
-            seen = set()
-            unique_links = []
-            for link in links:
-                if link not in seen:
-                    seen.add(link)
-                    unique_links.append(link)
-
+            sel = Selector(content=html)
+            seen: Set[str] = set()
+            unique_links: List[str] = []
+            for a_el in sel.css("a[href]"):
+                href = a_el.attrib.get("href", "")
+                if not href:
+                    continue
+                absolute_url = urljoin(base_url, href)
+                if (
+                    absolute_url.startswith("http")
+                    and self._is_same_domain(base_url, absolute_url)
+                    and absolute_url not in seen
+                ):
+                    seen.add(absolute_url)
+                    unique_links.append(absolute_url)
             return unique_links
-
         except Exception as e:
             logger.debug(f"Error extracting links: {e}")
             return []

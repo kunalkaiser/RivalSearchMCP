@@ -15,33 +15,32 @@ from typing import Any, Dict, List
 from urllib.parse import quote_plus
 
 import httpx
-from bs4 import BeautifulSoup
+from scrapling.parser import Selector
 
 from src.logging.logger import logger
 
 
 def _parse_story(li) -> Dict[str, Any]:
-    link = li.select_one(".link a.u-url")
-    title = link.get_text(strip=True) if link else ""
-    url = link.get("href", "") if link else ""
-    upvoter = li.select_one(".voters a.upvoter")
+    link = li.css_first(".link a.u-url")
+    title = link.get_all_text(strip=True) if link else ""
+    url = link.attrib.get("href", "") if link else ""
+    upvoter = li.css_first(".voters a.upvoter")
     score = 0
     if upvoter:
         try:
-            score = int(upvoter.get_text(strip=True))
+            score = int(upvoter.get_all_text(strip=True))
         except ValueError:
             score = 0
-    tags = [t.get_text(strip=True) for t in li.select(".tags a.tag")]
-    byline = li.select_one(".byline")
-    byline_text = byline.get_text(" ", strip=True) if byline else ""
-    comments_link = li.select_one(".comments_label a")
+    tags = [t.get_all_text(strip=True) for t in li.css(".tags a.tag")]
+    byline = li.css_first(".byline")
+    byline_text = byline.get_all_text(" ", strip=True) if byline else ""
+    comments_link = li.css_first(".comments_label a")
     comments_url = ""
     comments_count = 0
     if comments_link:
-        href = comments_link.get("href", "")
+        href = comments_link.attrib.get("href", "")
         comments_url = href if href.startswith("http") else f"https://lobste.rs{href}"
-        label = comments_link.get_text(strip=True)
-        # e.g. "8 comments"
+        label = comments_link.get_all_text(strip=True)
         for tok in label.split():
             if tok.isdigit():
                 comments_count = int(tok)
@@ -98,8 +97,8 @@ class LobstersSearch:
                             r.text[:200],
                         )
                         return []
-                    soup = BeautifulSoup(r.text, "html.parser")
-                    stories = soup.select("ol.stories li.story")[:limit]
+                    sel = Selector(content=r.text)
+                    stories = sel.css("ol.stories li.story")[:limit]
                     results = [_parse_story(s) for s in stories]
                     logger.info("Found %d Lobste.rs stories for %r", len(results), query)
                     return results

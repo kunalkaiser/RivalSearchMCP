@@ -1,11 +1,10 @@
 """
 Mojeek web search engine via www.mojeek.com/search.
 
-Mojeek operates its own independent index (not a Google/Bing wrapper)
-and exposes real full-text search through a plain HTML SERP. Accepts
-standard requests fine, but we still route through Scrapling for
-consistency with the other engines and because its header defaults
-match what Mojeek expects.
+Mojeek is not Cloudflare-fronted; it runs its own anti-scraping layer
+that detects the stealthy Referer header Scrapling injects. We still
+use Scrapling's AsyncFetcher for TLS fingerprinting, but with
+stealthy_headers=False so no fake Google Referer is sent.
 
 Result cards are `ul.results-standard > li`; title link is `h2 a`
 (direct link, no redirector unlike Bing); snippet is `p.s`.
@@ -68,7 +67,12 @@ class MojeekSearchEngine(BaseSearchEngine):
             page = await AsyncFetcher.get(
                 self.search_url,
                 params={"q": query, "fmt": "html"},
-                stealthy_headers=True,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+                stealthy_headers=False,
                 timeout=30,
             )
         except Exception as e:

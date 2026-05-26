@@ -5,7 +5,7 @@ Handles content analysis and end-to-end research workflows.
 
 import asyncio
 import re
-from typing import Annotated, Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Set
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -24,7 +24,10 @@ ContentOperation = Literal[
     "extract",
     "score",
     "find_conflicts",
+    "validate",
+    "bibliography",
 ]
+BibFormat = Literal["apa7", "bibtex", "chicago", "json"]
 ExtractionMethod = Literal["auto", "html", "text", "markdown"]
 AnalysisType = Literal["general", "sentiment", "technical", "business"]
 LinkType = Literal["all", "internal", "external", "images", "documents"]
@@ -55,7 +58,9 @@ def register_analysis_tools(mcp: FastMCP):
                     "  analyze        - analyze `content` for key points / sentiment\n"
                     "  extract        - extract links from `url`\n"
                     "  score          - rate `urls` on quality signals\n"
-                    "  find_conflicts - compare `urls` for numeric / date / polarity disagreements"
+                    "  find_conflicts - compare `urls` for numeric / date / polarity disagreements\n"
+                    "  validate       - bulk check `urls` (≤100) for liveness, redirects, paywalls, last-modified\n"
+                    "  bibliography   - format `sources` as citations; use `bib_format` for style (apa7/bibtex/chicago/json)"
                 ),
             ),
         ],
@@ -70,7 +75,7 @@ def register_analysis_tools(mcp: FastMCP):
             Optional[List[str]],
             Field(
                 description=(
-                    "List of URLs for score (≤50) or find_conflicts (2-10). "
+                    "List of URLs for score (≤50), find_conflicts (2-10), or validate (≤100). "
                     "Ignored for single-URL operations."
                 ),
                 default=None,
@@ -136,6 +141,22 @@ def register_analysis_tools(mcp: FastMCP):
             bool,
             Field(description="Include metadata in the response.", default=True),
         ] = True,
+        bib_format: Annotated[
+            BibFormat,
+            Field(description="bibliography only: output style.", default="apa7"),
+        ] = "apa7",
+        sources: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description=(
+                    "bibliography only: list of source objects to format. "
+                    "Each object may contain: url, title, authors (list), year, "
+                    "journal, volume, issue, pages, doi, publisher, accessed_date. "
+                    "Any subset is accepted; missing fields are omitted from the citation."
+                ),
+                default=None,
+            ),
+        ] = None,
         ctx: Optional[Context] = None,
     ) -> ToolResult | str:
         """
@@ -153,6 +174,7 @@ def register_analysis_tools(mcp: FastMCP):
           extract        url
           score          urls              (optionally metadata)
           find_conflicts urls              (optionally claim)
+          validate       urls              (≤100 URLs; checks liveness, redirects, paywalls, last-modified)
         """
         try:
             logger.info(f"Performing {operation} operation")
@@ -188,6 +210,15 @@ def register_analysis_tools(mcp: FastMCP):
                     result = (
                         f"Failed to retrieve content from {url} after " f"{max_retries} attempts"
                     )
+                    return result
+
+                _RETRIEVE_LIMIT = 20_000
+                if len(result) > _RETRIEVE_LIMIT:
+                    total = len(result)
+                    result = (
+                        f"[truncated: {total:,} chars retrieved, showing first {_RETRIEVE_LIMIT:,}]\n\n"
+                        + result[:_RETRIEVE_LIMIT]
+                    )
                 return result
 
             elif operation == "stream":
@@ -218,7 +249,7 @@ def register_analysis_tools(mcp: FastMCP):
                 if not content:
                     raise ToolError("Content required for analyze operation")
 
-                analysis_result = {
+                analysis_result: Dict[str, Any] = {
                     "content_length": len(content),
                     "word_count": len(content.split()),
                     "analysis_type": analysis_type,
@@ -358,9 +389,9 @@ def register_analysis_tools(mcp: FastMCP):
                             "Content Operations",
                         )
 
-                    from bs4 import BeautifulSoup
+                    from scrapling.parser import Selector
 
-                    soup = BeautifulSoup(str(content), "html.parser")
+                    sel = Selector(content=str(content))
 
                     all_links = []
                     internal_links = []
@@ -370,8 +401,8 @@ def register_analysis_tools(mcp: FastMCP):
 
                     base_domain = urlparse(url).netloc
 
-                    for link in soup.find_all("a", href=True):
-                        href = link.get("href", "")
+                    for a_el in sel.css("a[href]"):
+                        href = str(a_el.attrib.get("href", ""))
                         if not href or href.startswith("#"):
                             continue
 
@@ -380,7 +411,7 @@ def register_analysis_tools(mcp: FastMCP):
 
                         link_info = {
                             "url": absolute_url,
-                            "text": link.get_text(strip=True)[:100] or "No text",
+                            "text": a_el.get_all_text(strip=True)[:100] or "No text",
                             "type": "internal" if link_domain == base_domain else "external",
                         }
 
@@ -406,13 +437,13 @@ def register_analysis_tools(mcp: FastMCP):
                         ):
                             document_links.append(link_info)
 
-                    for img in soup.find_all("img", src=True):
-                        src = img.get("src", "")
+                    for img_el in sel.css("img[src]"):
+                        src = str(img_el.attrib.get("src", ""))
                         absolute_url = urljoin(url, src)
                         image_links.append(
                             {
                                 "url": absolute_url,
-                                "alt": img.get("alt", "No alt text"),
+                                "alt": str(img_el.attrib.get("alt", "No alt text")),
                                 "type": "image",
                             }
                         )
@@ -480,23 +511,23 @@ def register_analysis_tools(mcp: FastMCP):
                     md.append({})
                 seeded = [{"url": u, **(m or {})} for u, m in zip(urls, md)]
                 annotated = assess_results(seeded)
-                summary = summarize_quality(annotated)
+                quality_summary = summarize_quality(annotated)
 
-                findings = [
+                score_findings = [
                     f"{r['quality']['score']}/100 ({r['quality']['tier']}) — {r['url']}"
                     for r in annotated
                 ]
                 payload = {
                     "topic": "Source Quality Scores",
                     "summary": (
-                        f"Confidence {summary['confidence']} · "
-                        f"mean {summary['mean_score']}/100 · "
-                        f"{summary['independent_domains']} independent domains across "
-                        f"{summary['result_count']} sources"
+                        f"Confidence {quality_summary['confidence']} · "
+                        f"mean {quality_summary['mean_score']}/100 · "
+                        f"{quality_summary['independent_domains']} independent domains across "
+                        f"{quality_summary['result_count']} sources"
                     ),
-                    "key_findings": findings,
+                    "key_findings": score_findings,
                     "quality_details": [{"url": r["url"], **r["quality"]} for r in annotated],
-                    "confidence": summary,
+                    "confidence": quality_summary,
                     "status": "success",
                 }
                 return ToolResult(
@@ -584,7 +615,7 @@ def register_analysis_tools(mcp: FastMCP):
                         pass
                 report = _find_conflicts_core([s for s in snippets], claim=claim)
 
-                findings: List[str] = []
+                findings = []
                 for c in report.conflicts:
                     findings.append(
                         f"[{c.type.value}] {c.topic} — "
@@ -615,6 +646,265 @@ def register_analysis_tools(mcp: FastMCP):
                     structured_content=payload,
                 )
 
+            elif operation == "validate":
+                if not urls:
+                    raise ToolError("urls required for validate operation")
+                if len(urls) > 100:
+                    raise ToolError("validate accepts at most 100 URLs per call")
+
+                import httpx as _httpx
+
+                _PAYWALL_PATTERNS = re.compile(
+                    r"(login|signin|subscribe|paywall|account|register|checkout|"
+                    r"membership|access-denied|gate|metered)",
+                    re.IGNORECASE,
+                )
+
+                async def _check_url(target: str) -> Dict[str, Any]:
+                    result: Dict[str, Any] = {
+                        "url": target,
+                        "status": None,
+                        "redirected": False,
+                        "final_url": target,
+                        "paywall": False,
+                        "last_modified": None,
+                        "error": None,
+                    }
+                    try:
+                        async with _httpx.AsyncClient(
+                            timeout=10.0,
+                            follow_redirects=True,
+                            headers={
+                                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                            },
+                        ) as client:
+                            resp = await client.head(target)
+                            result["status"] = resp.status_code
+                            result["final_url"] = str(resp.url)
+                            result["redirected"] = str(resp.url) != target
+                            result["last_modified"] = resp.headers.get("last-modified")
+                            if resp.status_code == 200:
+                                result["paywall"] = bool(
+                                    _PAYWALL_PATTERNS.search(result["final_url"])
+                                )
+                            # Some servers reject HEAD; retry with GET on 405
+                            if resp.status_code == 405:
+                                resp2 = await client.get(target, headers={"Range": "bytes=0-0"})
+                                result["status"] = resp2.status_code
+                                result["final_url"] = str(resp2.url)
+                                result["redirected"] = str(resp2.url) != target
+                                result["last_modified"] = resp2.headers.get("last-modified")
+                                if resp2.status_code in (200, 206):
+                                    result["paywall"] = bool(
+                                        _PAYWALL_PATTERNS.search(result["final_url"])
+                                    )
+                    except Exception as exc:
+                        result["error"] = str(exc)
+                    return result
+
+                check_results: List[Dict[str, Any]] = list(
+                    await asyncio.gather(*[_check_url(u) for u in urls])
+                )
+
+                live = sum(
+                    1
+                    for r in check_results
+                    if r["status"] and 200 <= r["status"] < 400 and not r["paywall"]
+                )
+                dead = sum(1 for r in check_results if r["status"] and r["status"] >= 400)
+                paywalled = sum(1 for r in check_results if r["paywall"])
+                errored = sum(1 for r in check_results if r["error"] and not r["status"])
+
+                payload = {
+                    "topic": f"URL Validation ({len(urls)} URLs)",
+                    "summary": (
+                        f"{len(urls)} URLs checked: {live} live, {dead} dead/error-status, "
+                        f"{paywalled} paywalled, {errored} network error."
+                    ),
+                    "results": check_results,
+                    "summary_counts": {
+                        "live": live,
+                        "dead": dead,
+                        "paywalled": paywalled,
+                        "errored": errored,
+                        "total": len(urls),
+                    },
+                    "status": "success",
+                }
+                return ToolResult(
+                    content=format_research_analysis_markdown(payload, "Content Operations"),
+                    structured_content=payload,
+                )
+
+            elif operation == "bibliography":
+                if not sources:
+                    raise ToolError(
+                        "bibliography requires `sources` — pass a list of source objects "
+                        "(url, title, authors, year, journal, doi, etc.)"
+                    )
+
+                import json as _json
+                from datetime import date as _date
+
+                today = _date.today().isoformat()
+
+                def _fmt_authors(raw: Any) -> str:
+                    if not raw:
+                        return "Unknown Author"
+                    if isinstance(raw, str):
+                        return raw
+                    lst = list(raw)
+                    if len(lst) == 1:
+                        return lst[0]
+                    if len(lst) == 2:
+                        return f"{lst[0]} & {lst[1]}"
+                    return f"{lst[0]} et al."
+
+                def _apa7(s: Dict[str, Any], idx: int) -> str:
+                    authors = _fmt_authors(s.get("authors"))
+                    year = s.get("year", "n.d.")
+                    title = s.get("title", "Untitled")
+                    journal = s.get("journal") or s.get("publisher")
+                    vol = s.get("volume")
+                    issue = s.get("issue")
+                    pages = s.get("pages")
+                    doi = s.get("doi")
+                    url = s.get("url")
+                    accessed = s.get("accessed_date", today)
+
+                    line = f"{authors} ({year}). {title}."
+                    if journal:
+                        line += f" *{journal}*"
+                        if vol:
+                            line += f", *{vol}*"
+                            if issue:
+                                line += f"({issue})"
+                        if pages:
+                            line += f", {pages}"
+                        line += "."
+                    if doi:
+                        line += f" https://doi.org/{doi}"
+                    elif url:
+                        line += f" Retrieved {accessed}, from {url}"
+                    return line
+
+                def _bibtex(s: Dict[str, Any], idx: int) -> str:
+                    key = re.sub(r"\W+", "", (s.get("title") or f"ref{idx}").split()[0].lower())
+                    year = s.get("year", "")
+                    entry_type = "article" if s.get("journal") else "misc"
+                    lines = [f"@{entry_type}{{{key}{year},"]
+                    authors_raw = s.get("authors")
+                    if authors_raw:
+                        authors_str = (
+                            " and ".join(authors_raw)
+                            if isinstance(authors_raw, list)
+                            else str(authors_raw)
+                        )
+                        lines.append(f"  author = {{{authors_str}}},")
+                    if s.get("title"):
+                        lines.append(f"  title = {{{s['title']}}},")
+                    if year:
+                        lines.append(f"  year = {{{year}}},")
+                    if s.get("journal"):
+                        lines.append(f"  journal = {{{s['journal']}}},")
+                    if s.get("volume"):
+                        lines.append(f"  volume = {{{s['volume']}}},")
+                    if s.get("issue"):
+                        lines.append(f"  number = {{{s['issue']}}},")
+                    if s.get("pages"):
+                        lines.append(f"  pages = {{{s['pages']}}},")
+                    if s.get("doi"):
+                        lines.append(f"  doi = {{{s['doi']}}},")
+                    if s.get("url"):
+                        lines.append(f"  url = {{{s['url']}}},")
+                    if s.get("publisher"):
+                        lines.append(f"  publisher = {{{s['publisher']}}},")
+                    lines.append("}")
+                    return "\n".join(lines)
+
+                def _chicago(s: Dict[str, Any], idx: int) -> str:
+                    authors_raw = s.get("authors")
+                    if isinstance(authors_raw, list) and authors_raw:
+                        if len(authors_raw) == 1:
+                            authors = authors_raw[0]
+                        elif len(authors_raw) == 2:
+                            parts = authors_raw[0].rsplit(" ", 1)
+                            last = parts[-1] if len(parts) > 1 else parts[0]
+                            authors = f"{last}, {authors_raw[0]} and {authors_raw[1]}"
+                        else:
+                            parts = authors_raw[0].rsplit(" ", 1)
+                            last = parts[-1] if len(parts) > 1 else parts[0]
+                            authors = f"{last}, {authors_raw[0]} et al."
+                    else:
+                        authors = str(authors_raw) if authors_raw else "Unknown Author"
+
+                    title = s.get("title", "Untitled")
+                    journal = s.get("journal") or s.get("publisher")
+                    year = s.get("year", "n.d.")
+                    vol = s.get("volume")
+                    issue = s.get("issue")
+                    pages = s.get("pages")
+                    doi = s.get("doi")
+                    url = s.get("url")
+                    accessed = s.get("accessed_date", today)
+
+                    line = f'{authors}. "{title}."'
+                    if journal:
+                        line += f" *{journal}*"
+                        if vol:
+                            line += f" {vol}"
+                            if issue:
+                                line += f", no. {issue}"
+                        line += f" ({year})"
+                        if pages:
+                            line += f": {pages}"
+                        line += "."
+                    else:
+                        line += f" ({year})."
+                    if doi:
+                        line += f" https://doi.org/{doi}."
+                    elif url:
+                        line += f" Accessed {accessed}. {url}."
+                    return line
+
+                # Deduplicate by URL then title
+                seen: Set[str] = set()
+                deduped: List[Dict[str, Any]] = []
+                src_list: List[Dict[str, Any]] = list(sources)
+                for src in src_list:
+                    key = str(src.get("url") or src.get("doi") or src.get("title") or "")
+                    if key and key not in seen:
+                        seen.add(key)
+                        deduped.append(src)
+
+                if bib_format == "json":
+                    formatted = _json.dumps(deduped, indent=2, ensure_ascii=False)
+                elif bib_format == "bibtex":
+                    formatted = "\n\n".join(_bibtex(s, i) for i, s in enumerate(deduped, 1))
+                elif bib_format == "chicago":
+                    entries = [_chicago(s, i) for i, s in enumerate(deduped, 1)]
+                    formatted = "\n\n".join(f"{i}. {e}" for i, e in enumerate(entries, 1))
+                else:  # apa7 default
+                    entries = [_apa7(s, i) for i, s in enumerate(deduped, 1)]
+                    formatted = "\n\n".join(f"{i}. {e}" for i, e in enumerate(entries, 1))
+
+                bib_payload: Dict[str, Any] = {
+                    "topic": f"Bibliography ({len(deduped)} sources, {bib_format})",
+                    "summary": (
+                        f"{len(deduped)} unique sources formatted as {bib_format.upper()}. "
+                        f"{len(src_list) - len(deduped)} duplicate(s) removed."
+                    ),
+                    "bibliography": formatted,
+                    "source_count": len(deduped),
+                    "duplicates_removed": len(src_list) - len(deduped),
+                    "format": bib_format,
+                    "status": "success",
+                }
+                return ToolResult(
+                    content=formatted,
+                    structured_content=bib_payload,
+                )
+
             else:
                 raise ToolError(f"Unknown operation: {operation}")
 
@@ -624,15 +914,6 @@ def register_analysis_tools(mcp: FastMCP):
                 {"topic": "Content Operations", "status": "error", "error": str(e)},
                 "Content Operations",
             )
-
-        return format_research_analysis_markdown(
-            {
-                "topic": "Content Operations",
-                "status": "error",
-                "error": "Unexpected execution path",
-            },
-            "Content Operations",
-        )
 
     @mcp.tool(
         annotations={
@@ -698,17 +979,6 @@ def register_analysis_tools(mcp: FastMCP):
                 default=True,
             ),
         ] = True,
-        session_id: Annotated[
-            Optional[str],
-            Field(
-                description=(
-                    "If provided, findings are appended to the research "
-                    "memory session with this id (see research_memory). "
-                    "Enables iterative research across calls."
-                ),
-                default=None,
-            ),
-        ] = None,
         ctx: Optional[Context] = None,
     ) -> str:
         """
@@ -718,20 +988,16 @@ def register_analysis_tools(mcp: FastMCP):
           entity - unified cross-source profile of a named entity
 
         Both modes auto-attach per-result quality scores and an aggregate
-        confidence signal so callers can calibrate trust. When `session_id`
-        is given, results are appended to research memory automatically.
+        confidence signal so callers can calibrate trust.
         """
         try:
             if mode == "entity":
-                return await _run_entity_mode(
-                    topic, max_sources=max_sources, session_id=session_id, ctx=ctx
-                )
+                return await _run_entity_mode(topic, max_sources=max_sources, ctx=ctx)
             return await _run_topic_mode(
                 topic,
                 sources=sources,
                 max_sources=max_sources,
                 include_analysis=include_analysis,
-                session_id=session_id,
             )
         except Exception as e:
             logger.error(f"Research topic failed: {e}")
@@ -744,28 +1010,21 @@ def register_analysis_tools(mcp: FastMCP):
 # ── Helpers used by research_topic modes ─────────────────────────────────────
 
 
-async def _auto_save(session_id: Optional[str], findings: List[Dict[str, Any]]) -> None:
-    """Best-effort append to a research memory session. Silent on failure
-    so memory unavailability never breaks a research call."""
-    if not session_id or not findings:
-        return
-    try:
-        from src.core.memory import research_session_add
-
-        await research_session_add(session_id, findings=findings)
-    except Exception as e:
-        logger.debug("auto-save to session %s failed: %s", session_id, e)
-
-
 async def _run_topic_mode(
     topic: str,
     *,
     sources: Optional[List[str]],
     max_sources: int,
     include_analysis: bool,
-    session_id: Optional[str],
 ) -> str:
-    """Topic research: search + fetch + extract key findings."""
+    """Topic research: search + fetch (concurrent) + extract key findings.
+
+    Fetches run in parallel with a 15s per-source cap, so the total
+    fetch phase takes ~15s regardless of how many sources are requested
+    (vs the old serial loop which could exceed the tool timeout).
+    """
+    import math
+
     from src.utils.scrapling_client import fetch_text
 
     logger.info("Starting comprehensive research on: %s", topic)
@@ -779,9 +1038,6 @@ async def _run_topic_mode(
         results = await engine.search(query=topic, num_results=max_sources)
         sources = [r.url for r in results[:max_sources] if r.url]
 
-    sources_researched: List[Dict[str, Any]] = []
-    key_findings: List[str] = []
-
     query_tokens = {t.lower() for t in re.findall(r"[A-Za-z][A-Za-z0-9]{2,}", topic)}
 
     def _rank_sentence(s: str) -> float:
@@ -789,51 +1045,50 @@ async def _run_topic_mode(
             return 0.0
         lower = s.lower()
         tok_hits = sum(1 for t in query_tokens if t in lower) if query_tokens else 0
-        import math
-
         length_score = math.log10(max(1, len(s)) + 1) - 1.5
         return max(0.0, length_score) * (1 + 0.5 * tok_hits)
 
-    for source_url in sources:
+    async def _fetch_one(source_url: str) -> Optional[Dict[str, Any]]:
         try:
-            clean_content = await fetch_text(source_url)
+            clean_content = await asyncio.wait_for(fetch_text(source_url), timeout=15.0)
             if not clean_content:
-                continue
-            sources_researched.append(
-                {
-                    "url": source_url,
-                    "title": source_url,
-                    "content": clean_content,
-                    "content_length": len(clean_content),
-                }
-            )
-            if include_analysis:
-                sentences = re.split(r"(?<=[.!?])\s+", clean_content)
-                ranked = sorted(
-                    ((s.strip(), _rank_sentence(s)) for s in sentences),
-                    key=lambda pair: pair[1],
-                    reverse=True,
-                )
-                key_findings.extend(s for s, score in ranked[:3] if score > 0)
+                return None
+            return {
+                "url": source_url,
+                "title": source_url,
+                "content": clean_content,
+                "content_length": len(clean_content),
+            }
         except Exception as e:
             logger.warning("Failed to retrieve content from %s: %s", source_url, e)
+            return None
+
+    fetch_results = await asyncio.gather(*[_fetch_one(u) for u in sources])
+    sources_researched: List[Dict[str, Any]] = [r for r in fetch_results if r is not None]
+
+    key_findings: List[str] = []
+    if include_analysis:
+        for src in sources_researched:
+            sentences = re.split(r"(?<=[.!?])\s+", src["content"])
+            ranked = sorted(
+                ((s.strip(), _rank_sentence(s)) for s in sentences),
+                key=lambda pair: pair[1],
+                reverse=True,
+            )
+            key_findings.extend(s for s, score in ranked[:3] if score > 0)
 
     scored = assess_results(sources_researched)
     confidence = summarize_quality(scored)
 
-    summary = (
-        (
-            f"Research on '{topic}': {len(scored)} sources, "
-            f"{len(key_findings)} key findings. "
+    if scored:
+        summary = (
+            f"Research on '{topic}': {len(scored)} sources, {len(key_findings)} key findings. "
             f"Confidence {confidence['confidence']} "
             f"(mean {confidence['mean_score']}/100, "
             f"{confidence['independent_domains']} independent domains)."
         )
-        if scored
-        else f"Research on '{topic}': no sources retrieved."
-    )
-
-    await _auto_save(session_id, scored)
+    else:
+        summary = f"Research on '{topic}': no sources retrieved."
 
     return format_research_analysis_markdown(
         {
@@ -862,12 +1117,11 @@ async def _run_entity_mode(
     entity: str,
     *,
     max_sources: int,
-    session_id: Optional[str],
     ctx: Optional[Context] = None,
 ) -> str:
     """Unified cross-source entity profile: web + news + github + social
     + academic fanned out in parallel, per-result quality, aggregate
-    confidence, optional session persistence."""
+    confidence."""
     from src.core.news.aggregator import NewsAggregator
     from src.core.scientific.search.orchestrator import AcademicSearchOrchestrator
     from src.core.social.bluesky import BlueskySearch
@@ -940,13 +1194,13 @@ async def _run_entity_mode(
     news = by_name.get("news")
     if isinstance(news, Exception):
         failures["news"] = str(news)
-    elif news:
+    elif isinstance(news, list):
         sections["news"] = list(news)
 
     github = by_name.get("github")
     if isinstance(github, Exception):
         failures["github"] = str(github)
-    elif github:
+    elif isinstance(github, list):
         for r in github:
             if "url" not in r and "html_url" in r:
                 r["url"] = r["html_url"]
@@ -956,7 +1210,7 @@ async def _run_entity_mode(
         data = by_name.get(key)
         if isinstance(data, Exception):
             failures[key] = str(data)
-        elif data:
+        elif isinstance(data, list):
             for item in data:
                 if "text" in item and "title" not in item:
                     item["title"] = item["text"][:120]
@@ -965,7 +1219,7 @@ async def _run_entity_mode(
     academic = by_name.get("academic")
     if isinstance(academic, Exception):
         failures["academic"] = str(academic)
-    elif academic:
+    elif isinstance(academic, list):
         sections["academic"] = list(academic)
 
     await _report(ctx, 75, 100, "scoring results")
@@ -987,7 +1241,6 @@ async def _run_entity_mode(
             enriched = dict(it)
             enriched.setdefault("section", section_name)
             flat_findings.append(enriched)
-    await _auto_save(session_id, flat_findings)
     await _report(ctx, 100, 100, "done")
 
     md = f"# 🗺️ Entity Profile: *{entity}*\n\n"
@@ -1035,8 +1288,5 @@ async def _run_entity_mode(
         for src_name, err in failures.items():
             md += f"- **{src_name}**: {err}\n"
         md += "\n"
-
-    if session_id:
-        md += f"*Saved to research session `{session_id}`.*\n\n"
 
     return md

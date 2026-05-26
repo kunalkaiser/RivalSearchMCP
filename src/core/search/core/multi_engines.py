@@ -9,22 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
-from bs4 import BeautifulSoup
-from bs4.element import Tag
-
-try:
-    from selectolax.parser import HTMLParser
-
-    SELECTOLAX_AVAILABLE = True
-except ImportError:
-    SELECTOLAX_AVAILABLE = False
-
-try:
-    import importlib.util
-
-    LXML_AVAILABLE = importlib.util.find_spec("lxml") is not None
-except Exception:
-    LXML_AVAILABLE = False
+from scrapling.parser import Selector
 
 from src.logging.logger import logger
 
@@ -121,19 +106,16 @@ class BaseSearchEngine:
         raise NotImplementedError
 
     async def _fetch_page_content(self, url: str) -> Optional[str]:
-        """Fetch page content with optimized error handling."""
+        """Fetch page content. Uses Scrapling's TLS fingerprinting so
+        Cloudflare-fronted result pages return 200 instead of 403."""
         if url in self.visited_urls:
             return None
 
         self.visited_urls.add(url)
 
-        try:
-            response = await self.session.get(url)
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            logger.warning(f"Failed to fetch content from {url}: {e}")
-            return None
+        from src.utils.scrapling_client import fetch_html
+
+        return await fetch_html(url)
 
     def _extract_real_url(self, url: str) -> Optional[str]:
         """Unwrap common search-engine redirect links to their target URL."""
@@ -165,59 +147,20 @@ class BaseSearchEngine:
         return extractor.extract(html_content)
 
     def _extract_internal_links(self, html_content: str, base_url: str) -> List[str]:
-        """Extract same-domain links. Prefers selectolax; falls back to
-        BeautifulSoup(lxml) if selectolax isn't installed or fails."""
+        """Extract same-domain links via Scrapling's Selector."""
         try:
-            links = []
-
-            if SELECTOLAX_AVAILABLE:
-                try:
-                    parser = HTMLParser(html_content)
-                    link_elements = parser.css("a[href]")
-
-                    for link in link_elements:
-                        if (
-                            hasattr(link, "attributes")
-                            and link.attributes
-                            and "href" in link.attributes
-                        ):
-                            href = link.attributes["href"]
-                            absolute_url = urljoin(base_url, str(href))
-
-                            if self._extract_domain(absolute_url) == self._extract_domain(base_url):
-                                links.append(absolute_url)
-
-                    if links:
-                        unique_links = list(set(links))[:10]
-                        logger.info(f"Extracted {len(unique_links)} internal links from {base_url}")
-                        return unique_links
-
-                except Exception as e:
-                    logger.debug(f"selectolax link extraction failed: {e}")
-
-            parser_name = "lxml" if LXML_AVAILABLE else "html.parser"
-            soup = BeautifulSoup(html_content, parser_name)
-
-            for link in soup.find_all("a", href=True):
-                try:
-                    if (
-                        isinstance(link, Tag)
-                        and hasattr(link, "attrs")
-                        and link.attrs
-                        and "href" in link.attrs
-                    ):
-                        href = link.attrs["href"]
-                        absolute_url = urljoin(base_url, str(href))
-
-                        if self._extract_domain(absolute_url) == self._extract_domain(base_url):
-                            links.append(absolute_url)
-                except Exception:
+            sel = Selector(content=html_content)
+            seen: Set[str] = set()
+            for a_el in sel.css("a[href]"):
+                href = a_el.attrib.get("href", "")
+                if not href:
                     continue
-
-            unique_links = list(set(links))[:10]
+                absolute_url = urljoin(base_url, href)
+                if self._extract_domain(absolute_url) == self._extract_domain(base_url):
+                    seen.add(absolute_url)
+            unique_links = list(seen)[:10]
             logger.info(f"Extracted {len(unique_links)} internal links from {base_url}")
             return unique_links
-
         except Exception as e:
             logger.warning(f"Failed to extract internal links: {e}")
             return []
@@ -309,99 +252,46 @@ class BaseSearchEngine:
     def _extract_title(self, html_content: str) -> str:
         """Extract page title from HTML."""
         try:
-            soup = BeautifulSoup(html_content, "html.parser")
-            title_tag = soup.find("title")
-            if isinstance(title_tag, Tag) and hasattr(title_tag, "get_text"):
-                return title_tag.get_text(strip=True)
-            return ""
+            el = Selector(content=html_content).css_first("title")
+            return el.get_all_text(strip=True) if el else ""
         except Exception:
             return ""
 
     def _extract_html_structure(self, html_content: str) -> Dict[str, Any]:
         """Extract HTML structure information for debugging."""
         try:
-            soup = BeautifulSoup(html_content, "html.parser")
-
-            structure = {
-                "tag_name": soup.name or "document",
-                "classes": [],
-                "id": "",
-                "data_attributes": {},
-                "child_elements": [],
-                "text_length": (
-                    len(soup.get_text())
-                    if hasattr(soup, "get_text") and callable(getattr(soup, "get_text"))
-                    else 0
-                ),
+            sel = Selector(content=html_content)
+            root = sel.css_first("body") or sel.css_first("main")
+            if not root:
+                return {
+                    "tag_name": "document",
+                    "classes": [],
+                    "id": "",
+                    "data_attributes": {},
+                    "child_elements": [],
+                    "text_length": 0,
+                }
+            all_text = root.get_all_text(strip=True)
+            classes = root.attrib.get("class", "").split()
+            id_ = root.attrib.get("id", "")
+            data_attrs = {k: v for k, v in root.attrib.items() if k.startswith("data-")}
+            children = []
+            for child in root.xpath("./*")[:5]:
+                children.append(
+                    {
+                        "tag": child.tag,
+                        "classes": child.attrib.get("class", "").split(),
+                        "text_preview": child.get_all_text(strip=True)[:100],
+                    }
+                )
+            return {
+                "tag_name": root.tag,
+                "classes": classes,
+                "id": id_,
+                "data_attributes": data_attrs,
+                "child_elements": children,
+                "text_length": len(all_text),
             }
-
-            main_element = soup.find("body") or soup.find("main") or soup
-
-            if (
-                isinstance(main_element, Tag)
-                and hasattr(main_element, "attrs")
-                and main_element.attrs
-            ):
-                attrs = main_element.attrs
-                if "class" in attrs:
-                    classes = attrs["class"]
-                    if isinstance(classes, list):
-                        structure["classes"] = classes
-                    elif isinstance(classes, str):
-                        structure["classes"] = [classes]
-
-                if "id" in attrs:
-                    structure["id"] = str(attrs["id"])
-
-                data_attrs = {}
-                for attr, value in attrs.items():
-                    if attr.startswith("data-"):
-                        data_attrs[attr] = str(value)
-                structure["data_attributes"] = data_attrs
-
-                children = []
-                try:
-                    if (
-                        isinstance(main_element, Tag)
-                        and hasattr(main_element, "find_all")
-                        and callable(getattr(main_element, "find_all"))
-                    ):
-                        for child in main_element.find_all(recursive=False)[:5]:
-                            if isinstance(child, Tag) and hasattr(child, "name") and child.name:
-                                child_info = {"tag": child.name, "classes": [], "text_preview": ""}
-
-                                if (
-                                    isinstance(child, Tag)
-                                    and hasattr(child, "attrs")
-                                    and child.attrs
-                                    and "class" in child.attrs
-                                ):
-                                    child_classes = child.attrs["class"]
-                                    if isinstance(child_classes, list):
-                                        child_info["classes"] = child_classes
-                                    elif isinstance(child_classes, str):
-                                        child_info["classes"] = [child_classes]
-
-                                if (
-                                    isinstance(child, Tag)
-                                    and hasattr(child, "get_text")
-                                    and callable(getattr(child, "get_text"))
-                                ):
-                                    try:
-                                        child_info["text_preview"] = child.get_text(strip=True)[
-                                            :100
-                                        ]
-                                    except Exception:
-                                        child_info["text_preview"] = ""
-
-                                children.append(child_info)
-                except Exception as e:
-                    logger.debug(f"Error extracting child elements: {e}")
-
-                structure["child_elements"] = children
-
-            return structure
-
         except Exception as e:
             logger.warning(f"Failed to extract HTML structure: {e}")
             return {"error": str(e)}

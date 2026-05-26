@@ -124,23 +124,12 @@ async def fetch_text(url: str, **kwargs: Any) -> Optional[str]:
 
 
 async def fetch_markdown(url: str, **kwargs: Any) -> Optional[str]:
-    """Return markdown-formatted page content via markdownify, or
-    None on failure / missing dependency.
-
-    markdownify is a very small pure-Python dep that handles the
-    HTML-to-markdown conversion reliably across pages where our
-    BeautifulSoup+custom converter has historically produced empty
-    output (Wikipedia article pages, for example).
-    """
+    """Return markdown-formatted page content via markdownify, or None on failure."""
     html = await fetch_html(url, **kwargs)
     if not html:
         return None
-    try:
-        from markdownify import markdownify as md
-    except ImportError:
-        logger.warning("markdownify not installed; fetch_markdown falling back to fetch_text")
-        # degrade gracefully
-        return await fetch_text(url, **kwargs)
+    from markdownify import markdownify as md
+
     try:
         return md(html, strip=["script", "style", "nav", "footer", "header"]).strip()
     except Exception as e:

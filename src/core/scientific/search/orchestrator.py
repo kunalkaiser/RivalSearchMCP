@@ -33,7 +33,7 @@ class AcademicSearchOrchestrator:
         }
 
     async def search_academic_papers(
-        self, query: str, sources: List[str] = None, limit: int = 20, **kwargs
+        self, query: str, sources: Optional[List[str]] = None, limit: int = 20, **kwargs
     ) -> List[Dict[str, Any]]:
         """
         Search for academic papers across multiple sources.
@@ -68,7 +68,7 @@ class AcademicSearchOrchestrator:
                 logger.warning(f"Provider {source} has no search method")
 
         # Execute searches concurrently
-        results = {}
+        results: Dict[str, Dict[str, Any]] = {}
         if search_tasks:
             try:
                 search_results = await asyncio.gather(
@@ -80,8 +80,10 @@ class AcademicSearchOrchestrator:
                     if isinstance(result, Exception):
                         logger.error(f"Search failed for {source}: {result}")
                         results[source] = {"status": "error", "error": str(result), "papers": []}
+                    elif isinstance(result, list):
+                        results[source] = {"status": "success", "papers": result}
                     else:
-                        results[source] = {"status": "success", "papers": result or []}
+                        results[source] = {"status": "success", "papers": []}
 
             except Exception as e:
                 logger.error(f"Concurrent search execution failed: {e}")
@@ -89,9 +91,9 @@ class AcademicSearchOrchestrator:
                     results[source] = {"status": "error", "error": str(e), "papers": []}
 
         # Extract and deduplicate papers
-        all_papers = []
+        all_papers: List[Dict[str, Any]] = []
         for source_data in results.values():
-            papers = source_data.get("papers", [])
+            papers: List[Dict[str, Any]] = source_data.get("papers") or []
             all_papers.extend(papers)
 
         # Deduplicate by title (case-insensitive)
@@ -104,20 +106,55 @@ class AcademicSearchOrchestrator:
                 seen_titles.add(title)
                 deduplicated_papers.append(paper)
 
+        # Keyword relevance filter — whole-word matching so "habit" in the
+        # query doesn't match "habitability" in an astrophysics paper.
+        import re as _re
+
+        from src.utils.query import query_keywords
+
+        keywords = query_keywords(query, min_length=4)
+        if keywords and deduplicated_papers:
+            threshold = max(1, min(2, len(keywords) // 4))
+
+            def _hits(paper: Dict[str, Any]) -> int:
+                text = (
+                    (paper.get("title") or "")
+                    + " "
+                    + (paper.get("abstract") or "")
+                    + " "
+                    + " ".join(paper.get("keywords") or [])
+                ).lower()
+                paper_tokens = set(_re.findall(r"[a-z][a-z0-9]{3,}", text))
+                return sum(1 for kw in keywords if kw in paper_tokens)
+
+            relevant = [p for p in deduplicated_papers if _hits(p) >= threshold]
+            # Only apply filter if it keeps at least 3 papers (or half the results,
+            # whichever is smaller) — never over-filter a sparse result set.
+            if len(relevant) >= min(3, len(deduplicated_papers) // 2):
+                logger.info(
+                    "Academic relevance filter: %d → %d papers (threshold=%d)",
+                    len(deduplicated_papers),
+                    len(relevant),
+                    threshold,
+                )
+                deduplicated_papers = relevant
+
         # Sort by relevance (sources in priority order)
         source_priority = {source: i for i, source in enumerate(valid_sources)}
         deduplicated_papers.sort(
             key=lambda p: (
                 source_priority.get(p.get("source", ""), len(source_priority)),
-                -int(p.get("citationCount") or 0),  # Higher citations first
-                -int(p.get("year") or 0),  # More recent first
+                -int(p.get("citationCount") or 0),
+                -int(p.get("year") or 0),
             )
         )
 
         logger.info(
-            f"Academic search completed: {len(deduplicated_papers)} unique papers from {len(valid_sources)} sources"
+            "Academic search completed: %d unique papers from %d sources",
+            len(deduplicated_papers),
+            len(valid_sources),
         )
-        return deduplicated_papers[:limit]  # Return only requested limit
+        return deduplicated_papers[:limit]
 
     async def get_paper_details(self, paper_id: str, source: str) -> Optional[Dict[str, Any]]:
         """
@@ -147,7 +184,7 @@ class AcademicSearchOrchestrator:
             return None
 
     async def search_combined_academic(
-        self, query: str, sources: List[str] = None, max_results: int = 50, **kwargs
+        self, query: str, sources: Optional[List[str]] = None, max_results: int = 50, **kwargs
     ) -> Dict[str, Any]:
         """
         Comprehensive academic search with metadata.
@@ -172,7 +209,7 @@ class AcademicSearchOrchestrator:
 
         # Generate metadata
         sources_used = sources or list(self.providers.keys())
-        papers_by_source = {}
+        papers_by_source: Dict[str, List[Dict[str, Any]]] = {}
         for paper in papers:
             source = paper.get("source", "unknown")
             if source not in papers_by_source:

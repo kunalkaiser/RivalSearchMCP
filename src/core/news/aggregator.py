@@ -23,7 +23,7 @@ from urllib.parse import quote_plus
 
 import feedparser
 import httpx
-from bs4 import BeautifulSoup
+from scrapling.parser import Selector
 
 from src.logging.logger import logger
 
@@ -322,13 +322,13 @@ class NewsAggregator:
                 if r.status_code != 200:
                     logger.warning("duckduckgo_news: %s", r.status_code)
                     return []
-                soup = BeautifulSoup(r.text, "html.parser")
+                sel = Selector(content=r.text)
                 out: List[Dict[str, Any]] = []
-                for a in soup.find_all("a", class_="result__a"):
+                for a_el in sel.css("a.result__a"):
                     if len(out) >= max_results:
                         break
-                    title = a.get_text(strip=True)
-                    href = a.get("href", "")
+                    title = a_el.get_all_text(strip=True)
+                    href = a_el.attrib.get("href", "")
                     if not title or not href:
                         continue
                     out.append(

@@ -1,0 +1,9 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.13",
+  "include": ["src", "tests", "server.py"],
+  "exclude": ["**/__pycache__"],
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "none"
+}

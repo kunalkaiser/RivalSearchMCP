@@ -17,11 +17,6 @@ repos:
       - id: ruff
         args: [--fix]
 
-  # mypy is available but not wired into pre-commit: the codebase currently
-  # has pre-existing type-check debt that a per-commit gate would block work
-  # on. Run it manually (`uv run mypy src/`) or enable this hook after the
-  # first clean pass. See CLAUDE.md § Code Quality.
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

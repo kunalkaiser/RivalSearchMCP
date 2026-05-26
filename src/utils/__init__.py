@@ -2,19 +2,9 @@
 Utility functions for RivalSearchMCP.
 """
 
-# Re-export BeautifulSoup utilities
-from bs4 import BeautifulSoup
-
 from .agents import get_enhanced_ua_list, get_random_user_agent
 from .clients import get_http_client
-
-# Import only the utilities that are actually used
 from .content import clean_html_to_markdown
-
-
-def create_soup(html: str):
-    """Create BeautifulSoup object."""
-    return BeautifulSoup(html, "html.parser")
 
 
 def clean_text(text: str) -> str:
@@ -28,7 +18,6 @@ def clean_text(text: str) -> str:
 
 __all__ = [
     "clean_html_to_markdown",
-    "create_soup",
     "clean_text",
     "get_random_user_agent",
     "get_enhanced_ua_list",

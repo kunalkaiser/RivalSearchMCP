@@ -18,6 +18,7 @@ from typing import List
 from scrapling.fetchers import AsyncFetcher
 
 from src.logging.logger import logger
+from src.utils.query import query_keywords
 
 from ...core.multi_engines import BaseSearchEngine, MultiSearchResult
 
@@ -122,4 +123,20 @@ class BingSearchEngine(BaseSearchEngine):
                     raw_html="",
                 )
             )
+
+        keywords = query_keywords(query)
+        if keywords and results:
+            relevant = [
+                r
+                for r in results
+                if any(kw in (r.title + " " + r.description).lower() for kw in keywords)
+            ]
+            if not relevant:
+                logger.warning(
+                    "Bing returned %d results with zero keyword overlap for %r — discarding",
+                    len(results),
+                    query,
+                )
+            results = relevant
+
         return results

@@ -11,7 +11,7 @@ Medium has no anonymous search API. We approximate search by:
    `/search?q=<query>` as a last resort.
 
 RSS `summary` fields contain raw HTML (images, linked byline, etc.) --
-we strip it with BeautifulSoup so consumers get clean text excerpts
+we strip it with Scrapling so consumers get clean text excerpts
 rather than unreadable markup blobs.
 """
 
@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 import feedparser
 import httpx
-from bs4 import BeautifulSoup
+from scrapling.parser import Selector
 
 from src.logging.logger import logger
 
@@ -50,7 +50,7 @@ def _clean_excerpt(html: str, max_chars: int = 280) -> str:
     """Strip HTML from an RSS summary to a plain-text excerpt."""
     if not html:
         return ""
-    text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    text = Selector(content=html).get_all_text(separator=" ", strip=True)
     text = re.sub(r"\s+", " ", text)
     if len(text) > max_chars:
         text = text[: max_chars - 1].rstrip() + "…"
@@ -142,7 +142,7 @@ class MediumSearch:
                     except httpx.HTTPError:
                         continue
 
-            # Phase 3: HTML search scrape as a last resort
+            # Phase 3: HTML search scrape
             if not results:
                 try:
                     r = await client.get(
@@ -150,15 +150,15 @@ class MediumSearch:
                         params={"q": query},
                     )
                     if r.status_code == 200:
-                        soup = BeautifulSoup(r.text, "html.parser")
-                        for link in soup.find_all(
-                            "a", href=lambda h: h and ("/p/" in h or "/@" in h)
-                        ):
+                        sel = Selector(content=r.text)
+                        for a_el in sel.css("a"):
                             if len(results) >= limit:
                                 break
-                            title = link.get_text(strip=True)
-                            href = link.get("href", "")
-                            if not title or len(title) < 10 or not href:
+                            href = a_el.attrib.get("href", "")
+                            if not href or ("/p/" not in href and "/@" not in href):
+                                continue
+                            title = a_el.get_all_text(strip=True)
+                            if not title or len(title) < 10:
                                 continue
                             url = href if href.startswith("http") else f"{self.base_url}{href}"
                             if url in seen_urls:

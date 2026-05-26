@@ -22,7 +22,6 @@ from src.prompts import register_prompts
 from src.routes.routes import register_custom_routes
 from src.tools.analysis import register_analysis_tools
 from src.tools.github_tool import register_github_tools
-from src.tools.memory import register_memory_tools
 from src.tools.news import register_news_tools
 from src.tools.pdf_tool import register_pdf_tools
 
@@ -31,7 +30,7 @@ from src.tools.pdf_tool import register_pdf_tools
 #   - entity_research  -> now research_topic(mode="entity")
 #   - find_conflicts   -> now content_operations(operation="find_conflicts")
 #   - score_sources    -> now content_operations(operation="score")
-#   - 5 research_session_* tools -> now single research_memory(operation=...)
+#   - research_memory  -> removed; server is stateless
 #   - trends_*         -> Google rate-limits, disabled
 from src.tools.scientific import register_scientific_tools
 from src.tools.search import register_search_tools
@@ -59,7 +58,7 @@ return results with per-item quality scores plus an aggregate
 confidence signal so callers can calibrate trust rather than treating
 all results as equal.
 
-🛠️  AVAILABLE TOOLS (10):
+🛠️  AVAILABLE TOOLS (9):
 
 Search (every result auto-annotated with a `quality` block + an
 aggregate `confidence` summary — high / medium / low):
@@ -84,16 +83,7 @@ Content + Synthesis (operation-dispatched tools with Literal enums):
     topic    (open-ended search + fetch + extract)
     entity   (unified cross-source profile of a named entity, fanning
               out across web + news + github + social + academic)
-  Accepts `session_id` to auto-save findings to research memory.
 - document_analysis: PDF, DOCX, text, images (OCR) — up to 50MB.
-
-Memory (one tool, `operation` enum covers all CRUD):
-- research_memory: Pick `operation`:
-    start  → create a workspace, returns session_id
-    add    → append findings and/or a note
-    get    → read full workspace state
-    list   → enumerate workspaces (optional tag filter)
-    delete → remove a workspace
 
 📋 USAGE PATTERNS:
 
@@ -104,17 +94,13 @@ Memory (one tool, `operation` enum covers all CRUD):
 3. Trust check: content_operations(operation="score", urls=[...])
 4. Conflict check: content_operations(operation="find_conflicts",
    urls=[...], claim?=...)
-5. Iterative research: research_memory(operation="start", topic=...)
-   → pass session_id into research_topic or research_memory(add)
-   across calls to accumulate findings
-6. Academic: scientific_research(operation="academic_search") →
+5. Academic: scientific_research(operation="academic_search") →
    document_analysis on PDF links
 
 💡 BEST PRACTICES:
 - Every search tool attaches `quality` per result — weight findings by
   it when synthesizing; treat `confidence="low"` as a cue to cross-check
 - Combine tools: search → score → retrieve → analyze → conflicts
-- For multi-step research, use research_memory to carry context forward
 
 🚀 PERFORMANCE:
 - Multi-source tools fan out concurrently (asyncio.gather)
@@ -148,7 +134,6 @@ register_social_media_tools(app)
 register_news_tools(app)
 register_github_tools(app)
 register_pdf_tools(app)
-register_memory_tools(app)
 
 register_prompts(app)
 register_custom_routes(app)

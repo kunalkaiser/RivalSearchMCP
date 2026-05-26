@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test suite for social_search tool.
-Validates Reddit, Hacker News, Dev.to, Product Hunt, and Medium search.
-"""
+"""Tests for social_search tool."""
 
 import asyncio
 import os
@@ -18,13 +15,11 @@ from tests.mcp_client import create_client
 
 @pytest.mark.skipif(
     os.getenv("CI") == "true",
-    reason="Reddit's Cloudflare layer blocks GitHub Actions IP ranges even with "
-    "a compliant User-Agent. The source is resilient locally (see the "
-    "old.reddit.com fallback in src/core/social/reddit.py) but there's no "
-    "workaround for a static IP block. Covered by the local test runs.",
+    reason="Pullpush.io is accessible from all IPs, but CI runners occasionally "
+    "hit rate limits on external APIs. Covered by local test runs.",
 )
 async def test_reddit_search():
-    """Test Reddit search functionality."""
+    """Test Reddit search via Pullpush.io."""
     async with create_client() as client:
         result = await client.call_tool(
             "social_search",
@@ -39,12 +34,11 @@ async def test_reddit_search():
         output = result.content[0].text
         assert len(output) > 200, f"Reddit search output too short: {len(output)} chars"
         assert "reddit" in output.lower(), "No Reddit results found"
-
         print(f"✅ Reddit search test passed - {len(output)} chars")
 
 
 async def test_hackernews_search():
-    """Test Hacker News search functionality."""
+    """Test HackerNews search via Algolia."""
     async with create_client() as client:
         result = await client.call_tool(
             "social_search",
@@ -52,14 +46,49 @@ async def test_hackernews_search():
         )
 
         output = result.content[0].text
-        assert len(output) > 200, f"Hacker News search output too short: {len(output)} chars"
+        assert len(output) > 200, f"HackerNews search output too short: {len(output)} chars"
         assert "hacker" in output.lower() or "news" in output.lower()
+        print(f"✅ HackerNews search test passed - {len(output)} chars")
 
-        print(f"✅ Hacker News search test passed - {len(output)} chars")
+
+async def test_hackernews_long_query():
+    """Long verbose queries should return results after normalization."""
+    async with create_client() as client:
+        result = await client.call_tool(
+            "social_search",
+            {
+                "query": "smart home abandoned stopped using frustrated too complicated not worth it automation setup",
+                "platforms": ["hackernews"],
+                "max_results_per_platform": 5,
+            },
+        )
+
+        output = result.content[0].text
+        assert "Found 0 results" not in output, "Long HN query still returns 0 after normalization"
+        print(f"✅ HackerNews long query test passed - {len(output)} chars")
+
+
+async def test_bluesky_long_query():
+    """Long verbose queries should return results after normalization."""
+    async with create_client() as client:
+        result = await client.call_tool(
+            "social_search",
+            {
+                "query": "voice assistant wish it could help me clean guide me through tasks coaching not just commands",
+                "platforms": ["bluesky"],
+                "max_results_per_platform": 5,
+            },
+        )
+
+        output = result.content[0].text
+        assert (
+            "Found 0 results" not in output
+        ), "Long Bluesky query still returns 0 after normalization"
+        print(f"✅ Bluesky long query test passed - {len(output)} chars")
 
 
 async def test_devto_search():
-    """Test Dev.to search functionality."""
+    """Test Dev.to search."""
     async with create_client() as client:
         result = await client.call_tool(
             "social_search",
@@ -68,30 +97,29 @@ async def test_devto_search():
 
         output = result.content[0].text
         assert len(output) > 100, f"Dev.to search output too short: {len(output)} chars"
-
         print(f"✅ Dev.to search test passed - {len(output)} chars")
 
 
 async def test_all_platforms():
-    """Test searching all platforms simultaneously."""
+    """All three previously-broken platforms return results for the same query."""
     async with create_client() as client:
         result = await client.call_tool(
             "social_search",
             {
-                "query": "JavaScript",
-                "platforms": ["reddit", "hackernews", "devto"],
+                "query": "ADHD productivity tools focus",
+                "platforms": ["reddit", "hackernews", "bluesky"],
                 "max_results_per_platform": 3,
             },
         )
 
         output = result.content[0].text
+        assert "Found 0 results" not in output, "Combined platform search returned nothing"
         assert len(output) > 300, f"Multi-platform search too short: {len(output)} chars"
-
         print(f"✅ All platforms test passed - {len(output)} chars")
 
 
 async def test_time_filter():
-    """Test Reddit time filter parameter."""
+    """Reddit time filter is passed through to Pullpush."""
     async with create_client() as client:
         result = await client.call_tool(
             "social_search",
@@ -105,13 +133,14 @@ async def test_time_filter():
 
         output = result.content[0].text
         assert len(output) > 100, "Time filter test output too short"
-
         print("✅ Time filter test passed")
 
 
 if __name__ == "__main__":
     asyncio.run(test_reddit_search())
     asyncio.run(test_hackernews_search())
+    asyncio.run(test_hackernews_long_query())
+    asyncio.run(test_bluesky_long_query())
     asyncio.run(test_devto_search())
     asyncio.run(test_all_platforms())
     asyncio.run(test_time_filter())
