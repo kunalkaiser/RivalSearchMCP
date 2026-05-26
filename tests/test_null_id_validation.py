@@ -11,7 +11,7 @@ from starlette.testclient import TestClient
 
 def test_has_null_id_helper():
     """Unit test for _has_null_id detection logic."""
-    from src.middleware.null_id_validation import _has_null_id
+    from rival_search_mcp.middleware.null_id_validation import _has_null_id
 
     assert _has_null_id({"jsonrpc": "2.0", "method": "init", "id": None}) is True
     assert _has_null_id({"jsonrpc": "2.0", "method": "init", "id": "x"}) is False
@@ -23,7 +23,7 @@ def test_has_null_id_helper():
 @pytest.fixture
 def http_client():
     """Create test client with HTTP app (includes NullIdValidationMiddleware)."""
-    from server import app
+    from rival_search_mcp.server import app
 
     asgi_app = app.http_app(path="/mcp/")
     return TestClient(asgi_app, raise_server_exceptions=False)

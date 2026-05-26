@@ -19,7 +19,7 @@ import pytest
 @pytest.fixture
 def app():
     """Import the real server app exactly once per test session."""
-    from server import app as server_app
+    from rival_search_mcp.server import app as server_app
 
     return server_app
 

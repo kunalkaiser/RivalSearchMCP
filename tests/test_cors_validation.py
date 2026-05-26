@@ -15,7 +15,7 @@ from starlette.testclient import TestClient
 @pytest.fixture
 def http_client():
     """Create test client with HTTP app (includes all security middleware)."""
-    from server import app
+    from rival_search_mcp.server import app
 
     asgi_app = app.http_app(path="/mcp/")
     return TestClient(asgi_app, raise_server_exceptions=False)
@@ -125,7 +125,7 @@ def test_no_origin_header_passes_through(http_client):
 
 def test_get_allowed_origins_defaults():
     """Default origins should include the FastMCP app domain."""
-    from src.middleware.cors_validation import _get_allowed_origins
+    from rival_search_mcp.middleware.cors_validation import _get_allowed_origins
 
     origins = _get_allowed_origins()
     assert "https://rivalsearchmcp.fastmcp.app" in origins
@@ -135,7 +135,7 @@ def test_get_allowed_origins_defaults():
 def test_get_allowed_origins_from_env(monkeypatch):
     """ALLOWED_ORIGINS env var should extend the default set."""
     monkeypatch.setenv("ALLOWED_ORIGINS", "https://example.com,https://foo.bar")
-    from src.middleware.cors_validation import _get_allowed_origins
+    from rival_search_mcp.middleware.cors_validation import _get_allowed_origins
 
     origins = _get_allowed_origins()
     assert "https://example.com" in origins
