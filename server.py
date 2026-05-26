@@ -7,38 +7,21 @@ import os
 
 from fastmcp import FastMCP
 
-# Import logger
 from src.logging.logger import logger
-
-# Import middleware
 from src.middleware import register_middleware
 from src.middleware.cors_validation import CORSOriginValidationMiddleware
+from src.middleware.middleware import start_background_tasks
 from src.middleware.null_id_validation import NullIdValidationMiddleware
-
-# Import prompts
 from src.prompts import register_prompts
-
-# Import custom routes
 from src.routes.routes import register_custom_routes
 from src.tools.analysis import register_analysis_tools
 from src.tools.github_tool import register_github_tools
 from src.tools.news import register_news_tools
 from src.tools.pdf_tool import register_pdf_tools
-
-# Removed tools (capabilities folded into the tools above):
-#   - research_agent   -> LLM-driven, replaced by deterministic tools
-#   - entity_research  -> now research_topic(mode="entity")
-#   - find_conflicts   -> now content_operations(operation="find_conflicts")
-#   - score_sources    -> now content_operations(operation="score")
-#   - research_memory  -> removed; server is stateless
-#   - trends_*         -> Google rate-limits, disabled
 from src.tools.scientific import register_scientific_tools
 from src.tools.search import register_search_tools
 from src.tools.social_media import register_social_media_tools
 from src.tools.traversal import register_traversal_tools
-
-# Import modular tool registration functions
-
 
 # Environment-based configuration
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
@@ -137,8 +120,6 @@ register_pdf_tools(app)
 
 register_prompts(app)
 register_custom_routes(app)
-
-from src.middleware.middleware import start_background_tasks  # noqa: E402
 
 start_background_tasks()
 

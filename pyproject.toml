@@ -36,6 +36,7 @@ dependencies = [
     # converter which silently returned empty output on some modern sites
     # (Wikipedia article pages, for example).
     "markdownify>=0.11",
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]

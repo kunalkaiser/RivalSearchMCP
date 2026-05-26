@@ -14,6 +14,7 @@ shared session); most target sites don't bot-check us.
 
 from datetime import datetime
 from typing import List
+from urllib.parse import parse_qs, unquote, urlparse
 
 from scrapling.fetchers import AsyncFetcher
 
@@ -56,7 +57,6 @@ class DuckDuckGoSearchEngine(BaseSearchEngine):
 
                 result.full_content = self._extract_main_content(content)
                 result.internal_links = self._extract_internal_links(content, target_url)
-                result.html_structure = self._extract_html_structure(content)
 
                 if follow_links and result.internal_links and max_depth > 1:
                     result.second_level_content = await self._extract_second_level_content(
@@ -121,8 +121,6 @@ class DuckDuckGoSearchEngine(BaseSearchEngine):
                     engine=self.name,
                     position=i + 1,
                     timestamp=datetime.now().isoformat(),
-                    html_structure={},
-                    raw_html="",
                 )
             )
         return results
@@ -138,8 +136,6 @@ def _unwrap_ddg_url(raw: str) -> str:
     URL-decode it, and add `https:` to protocol-relative non-redirect
     links as a fallback.
     """
-    from urllib.parse import parse_qs, unquote, urlparse
-
     if not raw:
         return ""
     try:

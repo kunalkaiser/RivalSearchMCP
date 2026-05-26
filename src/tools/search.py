@@ -1,6 +1,6 @@
 """
 Search tools for FastMCP server.
-Handles multi-engine search with Yahoo and DuckDuckGo engines.
+Registers web_search across DuckDuckGo, Bing, Yahoo, Mojeek, and Wikipedia.
 """
 
 from typing import Annotated
@@ -67,47 +67,24 @@ def register_search_tools(mcp: FastMCP):
             int,
             Field(description="Maximum depth for link following", ge=1, le=3, default=2),
         ] = 2,
-        use_fallback: Annotated[
-            bool, Field(description="Whether to use fallback strategy", default=True)
-        ] = True,
     ) -> str:
         """
-        Multi-engine search across Yahoo and DuckDuckGo with enhanced security validation.
-
-        This tool searches across multiple engines simultaneously with:
-        - Input validation and sanitization
-        - Rate limiting protection
-        - Content security scanning
-        - Comprehensive error handling
+        Multi-engine search across DuckDuckGo, Bing, Yahoo, Mojeek, and Wikipedia
+        with input sanitization and rate-limit protection.
         """
-        # Security validation
         from src.core.security.security import InputValidator
 
         validator = InputValidator()
-
-        # Validate query
         valid_query, cleaned_query = validator.validate_search_query(query)
         if not valid_query:
             await ctx.error(f"Query validation failed: {cleaned_query}")
             return f"❌ **Error:** Invalid query: {cleaned_query}"
 
-        # Validate numeric parameters
-        valid_num, num_result = validator.validate_numeric_param(num_results, "num_results", 1, 20)
-        if not valid_num:
-            await ctx.error(f"Parameter validation failed: {num_result}")
-            return f"❌ **Error:** {num_result}"
-
-        valid_depth, depth_result = validator.validate_numeric_param(max_depth, "max_depth", 1, 3)
-        if not valid_depth:
-            await ctx.error(f"Parameter validation failed: {depth_result}")
-            return f"❌ **Error:** {depth_result}"
-
         return await web_search(
-            query=query,
+            query=cleaned_query,
             ctx=ctx,
             num_results=num_results,
             extract_content=extract_content,
             follow_links=follow_links,
             max_depth=max_depth,
-            use_fallback=use_fallback,
         )

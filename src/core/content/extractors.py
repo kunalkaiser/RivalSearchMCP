@@ -18,14 +18,14 @@ class BaseContentExtractor(ABC):
         pass
 
     @abstractmethod
-    def extract(self, content: str, **kwargs) -> Any:
+    def extract(self, content: str) -> Any:
         pass
 
 
 class UnifiedContentExtractor(BaseContentExtractor):
     """Extracts readable text from HTML using Scrapling's Selector."""
 
-    def extract(self, content: str, **kwargs) -> str:
+    def extract(self, content: str) -> str:
         if not content:
             return ""
         try:

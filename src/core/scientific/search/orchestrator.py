@@ -4,6 +4,7 @@ Coordinates searching across multiple academic paper providers.
 """
 
 import asyncio
+import re as _re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -105,10 +106,6 @@ class AcademicSearchOrchestrator:
             if title and title not in seen_titles:
                 seen_titles.add(title)
                 deduplicated_papers.append(paper)
-
-        # Keyword relevance filter — whole-word matching so "habit" in the
-        # query doesn't match "habitability" in an astrophysics paper.
-        import re as _re
 
         from src.utils.query import query_keywords
 
@@ -226,9 +223,6 @@ class AcademicSearchOrchestrator:
             "search_duration_seconds": duration,
             "timestamp": end_time.isoformat(),
         }
-
-        # Sort papers by relevance score (if available) or citation count
-        papers.sort(key=lambda p: (-int(p.get("citationCount") or 0), -int(p.get("year") or 0)))
 
         return {
             "status": "success",

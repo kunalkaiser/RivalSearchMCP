@@ -3,6 +3,8 @@ GitHub repository search using public API.
 No authentication required for public repository searches.
 """
 
+import base64
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -25,15 +27,10 @@ class GitHubSearch:
             "User-Agent": "RivalSearchMCP/1.0",
         }
         self.request_count = 0
-        self.last_reset_time = None
-        import time
-
         self.last_reset_time = time.time()
 
     def _check_rate_limit(self):
         """Check and enforce GitHub API rate limits (60 req/hour for no auth)."""
-        import time
-
         current_time = time.time()
 
         # Reset counter every hour
@@ -150,9 +147,6 @@ class GitHubSearch:
                 response.raise_for_status()
 
                 data = response.json()
-                # README is base64 encoded
-                import base64
-
                 content = base64.b64decode(data.get("content", "")).decode("utf-8")
 
                 logger.info(f"Retrieved README for {owner}/{repo}")

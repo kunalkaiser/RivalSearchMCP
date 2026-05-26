@@ -76,7 +76,6 @@ class DevToSearch:
 
     def __init__(self):
         self.api_url = "https://dev.to/api"
-        self.base_url = "https://dev.to"
         self.headers = {
             "User-Agent": (
                 "rivalsearchmcp/1.0 (+https://github.com/damionrashford/RivalSearchMCP)"
@@ -89,7 +88,6 @@ class DevToSearch:
         query: str,
         tag: Optional[str] = None,
         per_page: int = 10,
-        sort: str = "relevant",
     ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         seen_urls: set = set()

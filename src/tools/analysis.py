@@ -17,6 +17,8 @@ from src.core.quality import assess_results, summarize_quality
 from src.logging.logger import logger
 from src.utils.markdown_formatter import format_research_analysis_markdown
 
+_RETRIEVE_LIMIT = 20_000
+
 ContentOperation = Literal[
     "retrieve",
     "stream",
@@ -212,7 +214,6 @@ def register_analysis_tools(mcp: FastMCP):
                     )
                     return result
 
-                _RETRIEVE_LIMIT = 20_000
                 if len(result) > _RETRIEVE_LIMIT:
                     total = len(result)
                     result = (
@@ -908,6 +909,8 @@ def register_analysis_tools(mcp: FastMCP):
             else:
                 raise ToolError(f"Unknown operation: {operation}")
 
+        except ToolError:
+            raise
         except Exception as e:
             logger.error(f"Content operations failed: {e}")
             return format_research_analysis_markdown(

@@ -8,7 +8,6 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
 
-import httpx
 from scrapling.parser import Selector
 
 from src.logging.logger import logger
@@ -29,8 +28,6 @@ class MultiSearchResult:
         full_content: Optional[str] = None,
         internal_links: Optional[List[str]] = None,
         second_level_content: Optional[Dict[str, Any]] = None,
-        html_structure: Optional[Dict[str, Any]] = None,
-        raw_html: Optional[str] = None,
     ):
         self.title = title
         self.url = url
@@ -42,8 +39,6 @@ class MultiSearchResult:
         self.full_content = full_content
         self.internal_links = internal_links
         self.second_level_content = second_level_content
-        self.html_structure = html_structure
-        self.raw_html = raw_html
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -58,8 +53,6 @@ class MultiSearchResult:
             "full_content": self.full_content,
             "internal_links": self.internal_links,
             "second_level_content": self.second_level_content,
-            "html_structure": self.html_structure,
-            "raw_html": self.raw_html,
         }
 
 
@@ -70,28 +63,6 @@ class BaseSearchEngine:
 
         self.name = name
         self.base_url = base_url
-
-        # Browser-like headers matter -- plain httpx default UA gets 403
-        # from most search engines and Cloudflare-fronted targets.
-        limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
-        self.session = httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, connect=10.0, read=20.0),
-            follow_redirects=True,
-            limits=limits,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Sec-Fetch-User": "?1",
-                "Cache-Control": "max-age=0",
-            },
-        )
         self.visited_urls: Set[str] = set()
 
     async def search(
@@ -257,45 +228,6 @@ class BaseSearchEngine:
         except Exception:
             return ""
 
-    def _extract_html_structure(self, html_content: str) -> Dict[str, Any]:
-        """Extract HTML structure information for debugging."""
-        try:
-            sel = Selector(content=html_content)
-            root = sel.css_first("body") or sel.css_first("main")
-            if not root:
-                return {
-                    "tag_name": "document",
-                    "classes": [],
-                    "id": "",
-                    "data_attributes": {},
-                    "child_elements": [],
-                    "text_length": 0,
-                }
-            all_text = root.get_all_text(strip=True)
-            classes = root.attrib.get("class", "").split()
-            id_ = root.attrib.get("id", "")
-            data_attrs = {k: v for k, v in root.attrib.items() if k.startswith("data-")}
-            children = []
-            for child in root.xpath("./*")[:5]:
-                children.append(
-                    {
-                        "tag": child.tag,
-                        "classes": child.attrib.get("class", "").split(),
-                        "text_preview": child.get_all_text(strip=True)[:100],
-                    }
-                )
-            return {
-                "tag_name": root.tag,
-                "classes": classes,
-                "id": id_,
-                "data_attributes": data_attrs,
-                "child_elements": children,
-                "text_length": len(all_text),
-            }
-        except Exception as e:
-            logger.warning(f"Failed to extract HTML structure: {e}")
-            return {"error": str(e)}
-
     def _extract_domain(self, url: str) -> str:
         """Extract domain from URL."""
         try:
@@ -310,5 +242,4 @@ class BaseSearchEngine:
         return re.sub(r"\s+", " ", text).strip()
 
     async def close(self):
-        """Close the HTTP session."""
-        await self.session.aclose()
+        pass

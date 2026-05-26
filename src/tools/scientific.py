@@ -3,12 +3,14 @@ Scientific research tools for FastMCP server.
 Provides academic paper search and dataset discovery using refactored modules.
 """
 
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Literal, Optional
 
 from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing_extensions import Annotated
 
+from src.core.quality import assess_results, summarize_quality
 from src.core.scientific.datasets.orchestrator import DatasetDiscoveryOrchestrator
 from src.core.scientific.search.orchestrator import AcademicSearchOrchestrator
 from src.logging.logger import logger
@@ -37,7 +39,8 @@ def register_scientific_tools(mcp: FastMCP):
     async def scientific_research(
         ctx: Context,
         operation: Annotated[
-            str, Field(description="Operation type: 'academic_search' or 'dataset_discovery'")
+            Literal["academic_search", "dataset_discovery"],
+            Field(description="Operation type: 'academic_search' or 'dataset_discovery'"),
         ],
         query: Annotated[str, Field(description="Search query", min_length=1, max_length=500)],
         max_results: Annotated[
@@ -81,18 +84,13 @@ def register_scientific_tools(mcp: FastMCP):
 
             if operation == "academic_search":
                 if sources is None:
-                    # OpenAlex + CrossRef give broadest keyless coverage;
-                    # arxiv for preprints.
                     sources = ["openalex", "crossref", "arxiv"]
 
                 result = await academic_orchestrator.search_academic_papers(
                     query=query, sources=sources, limit=max_results
                 )
 
-                # Auto-attach quality scores + aggregate confidence.
                 try:
-                    from src.core.quality import assess_results, summarize_quality
-
                     result = assess_results(result)
                     confidence = summarize_quality(result)
                 except Exception as e:
@@ -107,23 +105,21 @@ def register_scientific_tools(mcp: FastMCP):
                         "metadata": {
                             "total_results": len(result),
                             "sources_used": sources,
-                            "timestamp": "now",
+                            "timestamp": datetime.now().isoformat(),
                             **({"confidence": confidence} if confidence else {}),
                         },
                     }
                 )
 
-            elif operation == "dataset_discovery":
+            else:  # dataset_discovery
                 if categories is None:
                     categories = ["computer_science"]
 
                 result = await dataset_orchestrator.search_datasets(
-                    query=query, sources=sources, limit=max_results
+                    query=query, sources=sources or [], limit=max_results
                 )
 
                 try:
-                    from src.core.quality import assess_results, summarize_quality
-
                     result = assess_results(result)
                     confidence = summarize_quality(result)
                 except Exception as e:
@@ -138,18 +134,9 @@ def register_scientific_tools(mcp: FastMCP):
                         "metadata": {
                             "total_results": len(result),
                             "categories_searched": categories,
-                            "timestamp": "now",
+                            "timestamp": datetime.now().isoformat(),
                             **({"confidence": confidence} if confidence else {}),
                         },
-                    }
-                )
-
-            else:
-                formatted_result = format_academic_search_markdown(
-                    {
-                        "status": "error",
-                        "error": f"Unknown operation: {operation}",
-                        "query": query,
                     }
                 )
 

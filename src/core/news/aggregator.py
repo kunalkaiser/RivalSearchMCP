@@ -23,6 +23,7 @@ from urllib.parse import quote_plus
 
 import feedparser
 import httpx
+from scrapling.fetchers import AsyncFetcher
 from scrapling.parser import Selector
 
 from src.logging.logger import logger
@@ -44,9 +45,7 @@ class NewsAggregator:
 
     def __init__(self):
         self.headers = {
-            "User-Agent": (
-                "rivalsearchmcp/1.0 " "(+https://github.com/damionrashford/RivalSearchMCP)"
-            ),
+            "User-Agent": "rivalsearchmcp/1.0 (+https://github.com/damionrashford/RivalSearchMCP)",
         }
 
     async def search_news(
@@ -161,8 +160,6 @@ class NewsAggregator:
         # TLS-fingerprints clients. Scrapling's AsyncFetcher drives
         # tls_client with a real browser fingerprint, so the RSS body is
         # populated. No subprocess, no headless browser.
-        from scrapling.fetchers import AsyncFetcher
-
         qft = {
             "day": "+filterui:age-lt24h",
             "week": "+filterui:age-lt1week",

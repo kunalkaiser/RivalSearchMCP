@@ -139,7 +139,8 @@ class MediumSearch:
                                 continue
                             seen_urls.add(url)
                             results.append(_format_entry(entry))
-                    except httpx.HTTPError:
+                    except httpx.HTTPError as e:
+                        logger.debug("Medium /feed/topic/%s failed: %s", slug, e)
                         continue
 
             # Phase 3: HTML search scrape

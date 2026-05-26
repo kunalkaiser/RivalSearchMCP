@@ -133,14 +133,13 @@ _COMMUNITY_DOMAINS: Set[str] = {
     "lemmy.ml",
     "stackexchange.com",
     "hackaday.com",
-    "quora.com",
 }
 
 # Classic content-farm / SEO-only domains we down-weight. Only obvious
 # cases -- being in this list costs points, so we keep it conservative.
 _AGGREGATOR_DOMAINS: Set[str] = {
     "pinterest.com",
-    "quora.com",  # (duplicated in community above; AGGREGATOR wins for scoring)
+    "quora.com",
     "buzzfeed.com",
     "dailymail.co.uk",
     "tomsguide.com",

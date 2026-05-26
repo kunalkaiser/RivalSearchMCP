@@ -28,9 +28,10 @@ def register_prompts(mcp: FastMCP):
 
 Use this tool sequence and synthesize the results yourself:
 
-1. entity_research (if the topic is a named entity) for a unified
-   cross-source profile with per-item quality scores.
-   - entity: "{topic}"
+1. research_topic(mode="entity") if the topic is a named entity —
+   one call fans out across web, news, GitHub, social, and academic.
+   - topic: "{topic}"
+   - mode: "entity"
 
 2. web_search for broader coverage.
    - query: "{topic}"
@@ -46,12 +47,14 @@ Use this tool sequence and synthesize the results yourself:
    - query: "{topic}"
    - max_results: {num_sources}
 
-5. score_sources on the 5-10 most relevant URLs to calibrate trust
-   before weighting findings.
+5. content_operations(operation="score") on the 5-10 most relevant
+   URLs to calibrate trust before weighting findings.
+   - urls: [<list of URLs from the search steps above>]
 
-6. find_conflicts when two or more sources make specific factual
-   claims about the same referent -- surfaces disagreements as a
-   first-class signal rather than averaging them away.
+6. content_operations(operation="find_conflicts") when two or more
+   sources make specific factual claims about the same referent --
+   surfaces disagreements as a first-class signal.
+   - urls: [<list of URLs>]
 
 Then produce a report including:
 - Key findings (weight by source quality, call out corroboration)

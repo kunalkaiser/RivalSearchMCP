@@ -20,29 +20,7 @@ def register_custom_routes(mcp):
     @mcp.custom_route("/health", methods=["GET"])
     async def health_check(request: Request) -> PlainTextResponse:
         """Health check endpoint for monitoring."""
-        try:
-            # Basic health check
-            health_status = {
-                "status": "healthy",
-                "timestamp": datetime.now().isoformat(),
-                "server": "RivalSearchMCP",
-                "version": "2.0.0",
-            }
-
-            # Check if we can access basic resources
-            try:
-                # This would check database connections, external services, etc.
-                # For now, just return healthy
-                pass
-            except Exception as e:
-                health_status["status"] = "degraded"
-                health_status["warning"] = str(e)
-
-            return PlainTextResponse(content="OK", status_code=HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(f"Health check failed: {e}")
-            return PlainTextResponse(content="ERROR", status_code=HTTP_500_INTERNAL_SERVER_ERROR)
+        return PlainTextResponse(content="OK", status_code=HTTP_200_OK)
 
     @mcp.custom_route("/metrics", methods=["GET"])
     async def metrics_endpoint(request: Request) -> JSONResponse:
@@ -97,8 +75,6 @@ def register_custom_routes(mcp):
                 },
                 "capabilities": {
                     "search": True,
-                    "trends": True,
-                    "llms": True,
                     "traversal": True,
                     "analysis": True,
                     "retrieval": True,
@@ -145,17 +121,9 @@ def register_custom_routes(mcp):
                     "comprehensive_research": True,
                 },
                 "tools": {
-                    # Keep this in sync with server.py tool registration.
-                    # Stale names (trends, llms, traverse_website,
-                    # analyze_content, retrieve_content, multi_search)
-                    # were removed in the tool-consolidation refactor.
                     "search": ["web_search", "social_search", "news_aggregation", "github_search"],
                     "traversal": ["map_website"],
-                    "analysis": [
-                        "content_operations",
-                        "research_topic",
-                        "research_memory",
-                    ],
+                    "analysis": ["content_operations", "research_topic"],
                     "scientific": ["scientific_research"],
                     "documents": ["document_analysis"],
                 },
@@ -179,7 +147,7 @@ def register_custom_routes(mcp):
     async def performance_endpoint(request: Request) -> JSONResponse:
         """Performance analysis endpoint with recommendations."""
         try:
-            from src.performance import create_performance_report
+            from src.performance.performance import create_performance_report
 
             performance_report = create_performance_report()
 
@@ -196,35 +164,46 @@ def register_custom_routes(mcp):
         """Tools information endpoint."""
         try:
             tools_info = {
-                "search_tools": {
-                    "multi_search": {
-                        "description": "Multi-engine search with fallbacks",
-                        "features": ["fallback_support", "redundancy"],
-                        "parameters": ["query", "engines", "num_results"],
+                "search": {
+                    "web_search": {
+                        "description": "Multi-engine web search (DuckDuckGo, Bing, Yahoo, Mojeek, Wikipedia)",
+                        "parameters": ["query", "num_results", "search_type"],
+                    },
+                    "social_search": {
+                        "description": "Search across Reddit, Hacker News, Dev.to, Product Hunt, Medium, Stack Overflow, Bluesky, Lobste.rs, Lemmy",
+                        "parameters": ["query", "platforms", "max_results"],
+                    },
+                    "news_aggregation": {
+                        "description": "News from Google News, Bing News, Guardian, GDELT, DuckDuckGo News",
+                        "parameters": ["query", "max_results", "language", "country", "time_range"],
+                    },
+                    "github_search": {
+                        "description": "Search GitHub repositories via public API",
+                        "parameters": ["query", "language", "sort", "order", "per_page"],
+                    },
+                    "scientific_research": {
+                        "description": "Academic papers (OpenAlex, CrossRef, arXiv, PubMed, Europe PMC) and datasets (Kaggle, HuggingFace, Zenodo, Harvard Dataverse)",
+                        "parameters": ["query", "operation", "sources", "max_results"],
+                    },
+                    "map_website": {
+                        "description": "Structured website crawling in research, docs, or map mode",
+                        "parameters": ["url", "mode", "max_pages", "max_depth"],
                     },
                 },
-                "trends_tools": {
-                    "search_trends": {
-                        "description": "Google Trends analysis",
-                        "features": ["temporal_analysis", "geographic_analysis"],
-                        "parameters": ["keywords", "timeframe", "geo"],
+                "content": {
+                    "content_operations": {
+                        "description": "URL/content transforms: retrieve, stream, analyze, extract, score, find_conflicts",
+                        "parameters": ["operation", "url", "urls", "content"],
                     },
-                    "export_trends": {
-                        "description": "Export trends data",
-                        "features": ["csv_export", "json_export", "sql_export"],
-                        "parameters": ["keywords", "format", "timeframe"],
+                    "document_analysis": {
+                        "description": "Analyze PDF, DOCX, and text documents",
+                        "parameters": ["source", "operation", "query"],
                     },
                 },
-                "analysis_tools": {
-                    "analyze_content": {
-                        "description": "AI-powered content analysis",
-                        "features": ["sentiment_analysis", "insight_extraction"],
-                        "parameters": ["content", "analysis_type"],
-                    },
+                "research": {
                     "research_topic": {
-                        "description": "End-to-end research workflow",
-                        "features": ["workflow_orchestration", "multi_tool"],
-                        "parameters": ["topic", "max_sources"],
+                        "description": "Open-ended research (topic mode) or cross-source entity profiling (entity mode)",
+                        "parameters": ["topic", "mode", "max_sources", "session_id"],
                     },
                 },
             }

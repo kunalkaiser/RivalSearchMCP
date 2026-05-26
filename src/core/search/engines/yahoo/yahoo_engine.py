@@ -14,6 +14,7 @@ for result URLs stays on the base httpx session.
 
 from datetime import datetime
 from typing import List
+from urllib.parse import urlencode
 
 from scrapling.fetchers import AsyncFetcher
 
@@ -56,7 +57,6 @@ class YahooSearchEngine(BaseSearchEngine):
 
                 result.full_content = self._extract_main_content(content)
                 result.internal_links = self._extract_internal_links(content, target_url)
-                result.html_structure = self._extract_html_structure(content)
 
                 if follow_links and result.internal_links and max_depth > 1:
                     result.second_level_content = await self._extract_second_level_content(
@@ -73,9 +73,6 @@ class YahooSearchEngine(BaseSearchEngine):
             "ei": "UTF-8",
             "fr": "yfp-t",
         }
-        # Build URL with params since Scrapling.get doesn't take a params dict
-        from urllib.parse import urlencode
-
         url = f"{self.search_url}?{urlencode(params)}"
 
         try:
@@ -121,8 +118,6 @@ class YahooSearchEngine(BaseSearchEngine):
                     engine=self.name,
                     position=i + 1,
                     timestamp=datetime.now().isoformat(),
-                    html_structure={},
-                    raw_html="",
                 )
             )
         return results

@@ -159,7 +159,7 @@ class ConcurrentProcessor:
                         return await operation(*args, **kwargs)
                     else:
                         # Run sync functions in thread pool
-                        loop = asyncio.get_event_loop()
+                        loop = asyncio.get_running_loop()
                         return await loop.run_in_executor(None, operation, *args, **kwargs)
                 except Exception as e:
                     self.logger.error(f"Operation {operation.__name__} failed: {e}")
@@ -215,19 +215,6 @@ class ConcurrentProcessor:
 
 
 class PerformanceMonitor:
-
-    def start(self):
-        """Start performance monitoring."""
-        self.logger.info("Performance monitoring started")
-
-    def stop(self):
-        """Stop performance monitoring."""
-        self.logger.info("Performance monitoring stopped")
-
-    def monitor(self, operation_name: str):
-        """Context manager for monitoring operations."""
-        return PerformanceMonitorContext(self, operation_name)
-
     """Monitors and tracks performance metrics."""
 
     def __init__(self):
@@ -315,25 +302,6 @@ class PerformanceMonitor:
         self.logger.info("Performance statistics reset")
 
 
-class PerformanceMonitorContext:
-    """Context manager for performance monitoring."""
-
-    def __init__(self, monitor: PerformanceMonitor, operation_name: str):
-        self.monitor = monitor
-        self.operation_name = operation_name
-        self.start_time = None
-
-    def __enter__(self):
-        self.start_time = time.perf_counter()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.start_time:
-            duration = time.perf_counter() - self.start_time
-            success = exc_type is None
-            self.monitor.record_operation(self.operation_name, duration, success)
-
-
 # Global performance monitor instance
 performance_monitor = PerformanceMonitor()
 
@@ -379,23 +347,6 @@ def monitor_performance(operation_name: Optional[str] = None):
             return sync_wrapper
 
     return decorator
-
-
-# Example usage functions
-async def example_concurrent_processing():
-    """Example of concurrent processing."""
-
-    processor = ConcurrentProcessor(max_concurrent=5, timeout_seconds=30.0)
-
-    # Example operations
-    async def sample_operation(item: str) -> str:
-        await asyncio.sleep(0.1)  # Simulate work
-        return f"Processed: {item}"
-
-    items = [f"item_{i}" for i in range(20)]
-    results = await processor.process_batch(items, sample_operation, batch_size=5)
-
-    return results
 
 
 # Performance optimization utilities

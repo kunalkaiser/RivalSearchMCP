@@ -6,7 +6,7 @@ No authentication required.
 from datetime import datetime
 from typing import List
 
-import httpx
+from scrapling.fetchers import AsyncFetcher
 
 from src.logging.logger import logger
 
@@ -18,15 +18,6 @@ class WikipediaSearchEngine(BaseSearchEngine):
 
     def __init__(self):
         super().__init__("Wikipedia", "https://en.wikipedia.org")
-        # Override with dedicated session for Wikipedia
-        self.session = httpx.AsyncClient(
-            timeout=30.0,
-            follow_redirects=True,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; RivalSearchMCP/1.0; +https://github.com/research)",
-                "Accept": "application/json",
-            },
-        )
         self.api_url = "https://en.wikipedia.org/w/api.php"
 
     async def search(
@@ -41,7 +32,6 @@ class WikipediaSearchEngine(BaseSearchEngine):
         try:
             logger.info(f"Starting Wikipedia search for: {query}")
 
-            # Use MediaWiki Search API
             params = {
                 "action": "query",
                 "list": "search",
@@ -51,8 +41,15 @@ class WikipediaSearchEngine(BaseSearchEngine):
                 "utf8": 1,
             }
 
-            response = await self.session.get(self.api_url, params=params)
-            response.raise_for_status()
+            response = await AsyncFetcher.get(
+                self.api_url,
+                params=params,
+                stealthy_headers=False,
+                headers={"Accept": "application/json"},
+            )
+            if response.status != 200:
+                logger.warning("Wikipedia API returned %s", response.status)
+                return []
 
             data = response.json()
             results = []
@@ -66,10 +63,8 @@ class WikipediaSearchEngine(BaseSearchEngine):
                     .replace("</span>", "")
                 )
 
-                # Build article URL
                 url = f"{self.base_url}/wiki/{title.replace(' ', '_')}"
 
-                # Optionally get article extract
                 description = snippet
                 if extract_content and page_id:
                     extract = await self._get_article_extract(page_id)
@@ -106,8 +101,14 @@ class WikipediaSearchEngine(BaseSearchEngine):
                 "format": "json",
             }
 
-            response = await self.session.get(self.api_url, params=params)
-            response.raise_for_status()
+            response = await AsyncFetcher.get(
+                self.api_url,
+                params=params,
+                stealthy_headers=False,
+                headers={"Accept": "application/json"},
+            )
+            if response.status != 200:
+                return ""
 
             data = response.json()
             pages = data.get("query", {}).get("pages", {})
@@ -115,7 +116,6 @@ class WikipediaSearchEngine(BaseSearchEngine):
             if pages:
                 page_data = list(pages.values())[0]
                 extract = page_data.get("extract", "")
-                # Return first 500 chars
                 return extract[:500] + ("..." if len(extract) > 500 else "")
 
             return ""
@@ -123,7 +123,3 @@ class WikipediaSearchEngine(BaseSearchEngine):
         except Exception as e:
             logger.debug(f"Failed to get Wikipedia extract: {e}")
             return ""
-
-    async def close(self):
-        """Close the session."""
-        await self.session.aclose()

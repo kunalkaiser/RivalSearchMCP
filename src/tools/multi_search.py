@@ -144,26 +144,6 @@ class MultiSearchOrchestrator:
 
         return {"summary": summary, "results": results}
 
-    async def search_with_fallback(
-        self,
-        query: str,
-        num_results: int = 10,
-        extract_content: bool = True,
-        follow_links: bool = True,
-        max_depth: int = 2,
-    ) -> Dict[str, Any]:
-        """
-        Deprecated - now just calls search_all_engines.
-        Kept for backward compatibility.
-        """
-        return await self.search_all_engines(
-            query=query,
-            num_results=num_results,
-            extract_content=extract_content,
-            follow_links=follow_links,
-            max_depth=max_depth,
-        )
-
     async def close_all_engines(self):
         """Close all engine sessions."""
         for engine in self.engines.values():
@@ -192,7 +172,6 @@ async def web_search(
     extract_content: bool = True,
     follow_links: bool = True,
     max_depth: int = 2,
-    use_fallback: bool = True,
 ) -> str:
     """
     Web search across multiple engines with comprehensive content extraction and caching.
@@ -203,7 +182,6 @@ async def web_search(
         extract_content: Whether to extract full page content (default: True)
         follow_links: Whether to follow internal links (default: True)
         max_depth: Maximum depth for link following (default: 2)
-        use_fallback: Whether to use fallback strategy (default: True)
         ctx: FastMCP context for progress reporting
 
     Returns:
@@ -215,10 +193,10 @@ async def web_search(
         await ctx.info(f"🔍 Starting multi-engine search for: {query}")
         await ctx.report_progress(0.1)
 
-        # Create cache key based on search parameters
-        cache_key = f"multi_search:{query}:{num_results}:{extract_content}:{follow_links}:{max_depth}:{use_fallback}"
+        cache_key = (
+            f"multi_search:{query}:{num_results}:{extract_content}:{follow_links}:{max_depth}"
+        )
 
-        # Try to get cached result first
         cache_manager = get_cache_manager()
         cached_result = await cache_manager.get(cache_key)
 
@@ -231,22 +209,13 @@ async def web_search(
 
         await ctx.report_progress(0.2)
 
-        if use_fallback:
-            results = await orchestrator.search_with_fallback(
-                query=query,
-                num_results=num_results,
-                extract_content=extract_content,
-                follow_links=follow_links,
-                max_depth=max_depth,
-            )
-        else:
-            results = await orchestrator.search_all_engines(
-                query=query,
-                num_results=num_results,
-                extract_content=extract_content,
-                follow_links=follow_links,
-                max_depth=max_depth,
-            )
+        results = await orchestrator.search_all_engines(
+            query=query,
+            num_results=num_results,
+            extract_content=extract_content,
+            follow_links=follow_links,
+            max_depth=max_depth,
+        )
 
         await ctx.report_progress(0.9)
 

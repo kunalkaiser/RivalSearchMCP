@@ -267,7 +267,7 @@ class FileCacheBackend(BaseCacheBackend):
     def _get_cache_path(self, key: str) -> Path:
         """Get the file path for a cache key."""
         # Create a safe filename from the key
-        safe_key = hashlib.md5(key.encode()).hexdigest()
+        safe_key = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
         return self.cache_dir / f"{safe_key}.cache"
 
     async def get(self, key: str) -> Optional[Any]:
@@ -434,9 +434,13 @@ class CacheManager:
         self._start_cleanup_task()
 
     def _start_cleanup_task(self):
-        """Start periodic cleanup task."""
-        if self.config.enabled:
-            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+        """Start periodic cleanup task — no-op if called outside an async context."""
+        if not self.config.enabled:
+            return
+        try:
+            self._cleanup_task = asyncio.get_running_loop().create_task(self._periodic_cleanup())
+        except RuntimeError:
+            pass
 
     async def _periodic_cleanup(self):
         """Periodically clean up expired entries."""
@@ -516,31 +520,3 @@ def get_cache_manager() -> CacheManager:
     if _cache_instance is None:
         _cache_instance = CacheManager()
     return _cache_instance
-
-
-async def cached_operation(cache_key: str, operation_func, ttl_seconds: Optional[int] = None):
-    """
-    Decorator-like function to cache operation results.
-
-    Args:
-        cache_key: Unique key for the cached result
-        operation_func: Async function to execute if not cached
-        ttl_seconds: TTL for the cache entry
-
-    Returns:
-        Cached result or result of operation_func
-    """
-    cache = get_cache_manager()
-
-    # Try to get from cache first
-    cached_result = await cache.get(cache_key)
-    if cached_result is not None:
-        return cached_result
-
-    # Execute operation
-    result = await operation_func()
-
-    # Cache the result
-    await cache.set(cache_key, result, ttl_seconds)
-
-    return result

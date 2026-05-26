@@ -61,21 +61,11 @@ def register_traversal_tools(mcp: FastMCP):
             await _progress(5, 100, f"starting {mode} traversal of {url}")
 
             if mode == "research":
-                result = await research_topic(url, max_pages=max_pages)
+                result = await research_topic(url, max_pages=max_pages, max_depth=max_depth)
             elif mode == "docs":
-                result = await explore_documentation(url, max_pages=max_pages)
-            elif mode == "map":
-                result = await map_website_structure(url, max_pages=max_pages)
-            else:
-                return format_traversal_markdown(
-                    {
-                        "success": False,
-                        "pages": [],
-                        "summary": f"Invalid mode: {mode}. Use 'research', 'docs', or 'map'",
-                        "total_pages": 0,
-                        "source": url,
-                    }
-                )
+                result = await explore_documentation(url, max_pages=max_pages, max_depth=max_depth)
+            else:  # mode == "map"
+                result = await map_website_structure(url, max_pages=max_pages, max_depth=max_depth)
 
             await _progress(60, 100, f"fetched {len(result)} pages, cleaning content")
 
@@ -83,7 +73,7 @@ def register_traversal_tools(mcp: FastMCP):
             total_pages = len(result)
             for i, page_dict in enumerate(result, 1):
                 raw_content = page_dict.get("content", "")
-                clean_content = clean_html_to_markdown(str(raw_content), page_dict.get("url", ""))
+                clean_content = clean_html_to_markdown(str(raw_content))
 
                 pages.append(
                     {

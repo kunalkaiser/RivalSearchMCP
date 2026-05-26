@@ -6,7 +6,7 @@ Bluesky, Lobste.rs, and Lemmy without authentication.
 """
 
 import asyncio
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from fastmcp import FastMCP
 
@@ -62,12 +62,7 @@ def register_social_media_tools(mcp: FastMCP):
     )
     async def social_search(
         query: str,
-        platforms: List[Platform] = [
-            "reddit",
-            "hackernews",
-            "stackoverflow",
-            "bluesky",
-        ],
+        platforms: Optional[List[Platform]] = None,
         max_results_per_platform: int = 10,
         max_results: int = 0,
         reddit_subreddit: str = "all",
@@ -101,6 +96,8 @@ def register_social_media_tools(mcp: FastMCP):
             lemmy_instance: Lemmy instance to query against (default lemmy.world)
         """
         try:
+            if platforms is None:
+                platforms = ["reddit", "hackernews", "stackoverflow", "bluesky"]
             limit = max_results if max_results > 0 else max_results_per_platform
             logger.info(f"Social search for: {query} on {platforms}")
 
@@ -142,7 +139,8 @@ def register_social_media_tools(mcp: FastMCP):
             # Auto-attach quality scores per platform + aggregate confidence
             try:
                 from src.core.quality import assess_results, summarize_quality
-            except Exception:
+            except Exception as _qe:
+                logger.warning("social_search quality scoring unavailable: %s", _qe)
                 assess_results = None
                 summarize_quality = None
 
