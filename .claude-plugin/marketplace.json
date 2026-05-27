@@ -2,6 +2,10 @@
   "name": "rivalsearchmcp",
   "displayName": "RivalSearch MCP",
   "description": "Multi-engine research tools for Claude Code — web, social, news, academic, GitHub, and document processing. No API keys.",
+  "owner": {
+    "name": "Damion Rashford",
+    "url": "https://github.com/damionrashford"
+  },
   "plugins": [
     {
       "name": "rival-search-mcp",
