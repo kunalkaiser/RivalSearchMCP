@@ -1,7 +1,7 @@
 {
   "$schema": "http://gofastmcp.com/public/schemas/fastmcp.json/v1.json",
   "source": {
-    "path": "rival_search_mcp/server.py",
+    "path": "server.py",
     "entrypoint": "app"
   },
   "environment": {
