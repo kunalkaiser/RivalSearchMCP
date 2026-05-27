@@ -51,28 +51,3 @@ python scripts/cli.py call-tool scientific_research --operation dataset_discover
 ```
 
 ---
-
-## research_agent
-
-AI research agent using OpenRouter with autonomous tool calling. Orchestrates multiple tools to generate comprehensive reports. Requires `OPENROUTER_API_KEY` environment variable.
-
-```bash
-uv run --with fastmcp python scripts/cli.py call-tool research_agent --topic <value> --max-sources <value> --research-depth <value> --ai-model <value>
-```
-
-| Flag | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `--topic` | string | yes | — | Research topic to investigate |
-| `--max-sources` | integer | no | 15 | Maximum sources to analyze |
-| `--include-trends` | boolean | no | true | Include trends analysis |
-| `--include-website-analysis` | boolean | no | true | Include website traversal |
-| `--research-depth` | string | no | comprehensive | Depth: "quick", "standard", "comprehensive" |
-| `--ai-model` | string | no | meta-llama/llama-3.1-8b-instruct:free | OpenRouter model (auto-fallback to 4+ free models) |
-| `--enable-ai-insights` | boolean | no | true | Generate AI-powered insights |
-
-**Example:**
-```bash
-python scripts/cli.py call-tool research_agent --topic "competitive analysis of MCP servers" --research-depth comprehensive --max-sources 20
-```
-
-**Note:** This is the only tool that requires an API key. Set `OPENROUTER_API_KEY` in your environment. Without it, the tool gracefully degrades.

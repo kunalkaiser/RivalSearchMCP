@@ -14,11 +14,11 @@
 
 **Deterministic research MCP server — web + social + academic + news + code + docs, all in one place. No API keys, no in-server LLM, structured outputs for agent chaining.**
 
-> 🆓 **100% Free & Open Source** — No API keys, no subscriptions, no rate limits. Just add one URL and go.
+> 🆓 **100% Free & Open Source** — No API keys or subscriptions for core tools. The hosted server includes fair-use rate limiting.
 
 ## What It Does
 
-RivalSearchMCP is a FastMCP 3.x server exposing **10 specialized tools** that search, fetch, score, and compare information across:
+RivalSearchMCP is a FastMCP 3.x server exposing **9 specialized tools** that search, fetch, score, and compare information across:
 
 - **5 web search engines** (DuckDuckGo, Bing, Yahoo, Mojeek, Wikipedia) — concurrent, deduplicated, with TLS-fingerprint-safe fetches via Scrapling
 - **9 social platforms** (Reddit, Hacker News, Stack Overflow, Dev.to, Medium, Product Hunt, Bluesky, Lobste.rs, Lemmy) — no authentication
@@ -32,10 +32,9 @@ RivalSearchMCP is a FastMCP 3.x server exposing **10 specialized tools** that se
 
 ## ✅ Why It's Useful
 
-- **One connection, ten capabilities** — no need to wire up separate MCP servers per source
+- **One connection, nine tools** — no need to wire up separate MCP servers per source
 - **Auto-quality scoring** — every result carries a tier/freshness/corroboration/citation score (0-100) and every multi-result response carries an aggregate confidence signal
 - **Conflict detection** — `content_operations find_conflicts` surfaces numeric, date, and polarity disagreements across sources as a first-class signal instead of averaging them away
-- **Persistent research workspaces** — `research_memory` lets an agent iteratively build up a session across calls with findings, notes, and dedup by URL
 - **Entity profiles** — `research_topic(mode="entity")` fans out to 8 sources in parallel and returns a unified report with confidence
 - **Production hygiene** — per-tool timeouts, rate limiting (100 req/min/session), response-size caps, error masking, middleware-level observability
 
@@ -43,7 +42,7 @@ RivalSearchMCP is a FastMCP 3.x server exposing **10 specialized tools** that se
 
 Once connected, try asking your AI assistant:
 
-> "Use RivalSearchMCP to research FastAPI vs Django. Run `research_topic` in topic mode on both, aggregate the news, check Reddit and Hacker News for recent discussions, search GitHub for activity, and look for academic papers. Score the top sources, find any conflicts between them, and save the findings to a named research session."
+> "Use RivalSearchMCP to research FastAPI vs Django. Run `research_topic` on both, aggregate recent news, check Reddit and Hacker News discussions, search GitHub for activity, look for academic papers, score the top sources, and flag any conflicts between them."
 
 ## 📦 How to Get Started
 
@@ -138,7 +137,7 @@ uv sync
 }
 ```
 
-## 🛠 Available Tools (10 Total)
+## 🛠 Available Tools (9 Total)
 
 Every tool carries `ToolAnnotations` (`readOnlyHint`, `openWorldHint`, `destructiveHint`, `idempotentHint`) so MCP clients like Claude and ChatGPT can skip confirmation prompts where safe. Every tool has a `timeout=` ceiling so a hung source can't stall the client.
 
@@ -153,30 +152,39 @@ Every tool carries `ToolAnnotations` (`readOnlyHint`, `openWorldHint`, `destruct
 - **`content_operations`** — one tool, six operations: `retrieve`, `stream`, `analyze`, `extract`, `score`, `find_conflicts`.
   - `score` rates URLs on tier / freshness / corroboration / citations (0-100) and returns both markdown + structured JSON.
   - `find_conflicts` compares 2-10 sources for numeric / date / polarity disagreements with confidence weights.
-- **`research_topic`** — two modes: `topic` (search + fetch + relevance-ranked key findings) and `entity` (unified cross-source profile of a named entity, fanning out to web / news / GitHub / social / academic in parallel). Optional `session_id` auto-saves findings to research memory.
+- **`research_topic`** — two modes: `topic` (search + fetch + relevance-ranked key findings) and `entity` (unified cross-source profile of a named entity, fanning out to web / news / GitHub / social / academic in parallel).
 - **`document_analysis`** — extract text from PDF, Word, plain text, and images. Images use EasyOCR (lazy-loaded; no setup). 50 MB cap.
 
-### Research Workflow (2 tools)
+### Research Workflow (1 tool)
 - **`scientific_research`** — academic paper and dataset search. 5 paper providers (OpenAlex, CrossRef, arXiv, PubMed, Europe PMC) and 4 dataset hubs (Kaggle, HuggingFace, Dataverse, Zenodo).
-- **`research_memory`** — persistent research workspaces with `start` / `add` / `get` / `list` / `delete`. Sessions survive reconnects; with `RESEARCH_MEMORY_DIR` set, they also survive server restarts. Dedupes findings by URL automatically.
 
 ## Plugins
 
-RivalSearchMCP ships as an installable plugin for both **Claude Code** and **OpenAI Codex**. Installing the plugin auto-registers the MCP server — all 10 tools appear immediately, no manual config needed.
+RivalSearchMCP ships as an installable plugin for both **Claude Code** and **OpenAI Codex**. The plugin registers the hosted MCP server at `https://RivalSearchMCP.fastmcp.app/mcp`, so users do not need to clone this repo or run a local server.
 
-The repo itself is the marketplace. Add it once, install from it forever.
+The GitHub repo is the plugin marketplace. Add the marketplace once, install the plugin, then ask your agent to use RivalSearchMCP for web, social, news, GitHub, academic, document, and source-quality research.
 
 ### Claude Code
 
+From a terminal:
+
 ```bash
 # 1. Add this repo as a marketplace
-/plugin marketplace add damionrashford/RivalSearchMCP
+claude plugin marketplace add damionrashford/RivalSearchMCP --scope user
 
 # 2. Install the plugin
+claude plugin install rival-search-mcp@rivalsearchmcp --scope user
+```
+
+Inside Claude Code, the same flow is available with slash commands:
+
+```text
+/plugin marketplace add damionrashford/RivalSearchMCP
 /plugin install rival-search-mcp@rivalsearchmcp
 ```
 
-Or in `.claude/settings.json` (project or user scope):
+For a team/project install, use `--scope project` instead of `--scope user`, or add the marketplace to `.claude/settings.json`:
+
 ```json
 {
   "extraKnownMarketplaces": {
@@ -191,16 +199,36 @@ Or in `.claude/settings.json` (project or user scope):
 ```
 Then `/plugin install rival-search-mcp@rivalsearchmcp`.
 
-Once installed, Claude Code sees all 10 tools as `mcp__RivalSearchMCP__*` — no extra configuration.
+Once installed, Claude Code exposes the MCP tools as `mcp__RivalSearchMCP__*`. Example prompts:
+
+```text
+Use RivalSearchMCP to search recent news about open source AI agents.
+Use RivalSearchMCP to compare FastAPI and Django across web, GitHub, and academic sources.
+Use RivalSearchMCP to retrieve this URL, score the source, and identify conflicting claims.
+```
 
 ### OpenAI Codex
 
 ```bash
 # 1. Add this repo as a marketplace
-codex plugin marketplace add damionrashford/RivalSearchMCP
+codex plugin marketplace add damionrashford/RivalSearchMCP --ref main
 
 # 2. Install the plugin
-codex plugin install rival-search-mcp@rival-search-mcp-marketplace
+codex plugin add rival-search-mcp@rival-search-mcp-marketplace
+```
+
+Once installed, start or refresh a Codex session and ask Codex to use RivalSearchMCP. Example prompts:
+
+```text
+Use RivalSearchMCP to run web_search for current MCP server comparisons.
+Use RivalSearchMCP to research this company across news, GitHub, and social sources.
+Use RivalSearchMCP to find scientific papers about retrieval augmented generation.
+```
+
+If you already added the marketplace and want the latest plugin metadata:
+
+```bash
+codex plugin marketplace upgrade
 ```
 
 ### Plugin structure
@@ -218,11 +246,16 @@ Marketplace catalogs at:
 - `.claude-plugin/marketplace.json` — Claude Code
 - `.agents/plugins/marketplace.json` — Codex
 
+Plugin package:
+- `plugins/rival-search-mcp/.claude-plugin/plugin.json` — Claude Code manifest
+- `plugins/rival-search-mcp/.codex-plugin/plugin.json` — Codex manifest
+- `plugins/rival-search-mcp/.mcp.json` — hosted MCP server registration
+
 ---
 
 ## Agent Skills
 
-RivalSearchMCP ships with a **Claude Code Agent Skill** — a self-contained CLI that lets AI agents use all 10 tools without MCP configuration.
+RivalSearchMCP ships with a **Claude Code Agent Skill** — a self-contained CLI that lets AI agents use all 9 tools without MCP configuration.
 
 ### Use as a Claude Code Skill
 
@@ -252,11 +285,11 @@ uv run skills/rival-search-mcp/scripts/cli.py list-tools
 skills/rival-search-mcp/
 ├── SKILL.md              # Agent instructions (auto-loaded by Claude Code)
 ├── scripts/
-│   └── cli.py            # Standalone CLI with all 10 tools
+│   └── cli.py            # Standalone CLI with all 9 tools
 └── resources/
     ├── search.md         # web_search, social_search, news_aggregation, github_search, map_website
     ├── content.md        # content_operations, document_analysis
-    └── research.md       # research_topic, scientific_research, research_memory
+    └── research.md       # research_topic, scientific_research
 ```
 
 ## ⚡ Key Features
@@ -269,7 +302,6 @@ skills/rival-search-mcp/
 - **Structured `ToolResult`**: `content_operations score` and `find_conflicts` return both markdown (for humans) and parseable JSON (for agent chaining)
 - **Auto-Quality Scoring**: every multi-result tool attaches per-item quality (0-100) and an aggregate confidence signal
 - **Conflict Detection**: finds numeric/date/polarity disagreements across sources with confidence weights
-- **Persistent Research Memory**: named workspaces with auto-dedup, survive server restarts when `RESEARCH_MEMORY_DIR` is set
 - **Document Analysis**: PDF / Word / text / images (images via EasyOCR, auto-downloaded)
 - **Production Hygiene**: per-tool timeouts, sliding-window rate limiting, response-size caps, error masking, FastMCP 3.x middleware stack
 - **Zero Authentication**: every tool works without API keys or setup.
@@ -279,13 +311,13 @@ skills/rival-search-mcp/
 <details>
 <summary><strong>Is RivalSearchMCP really free?</strong></summary>
 
-Yes! RivalSearchMCP is 100% free and open source under the MIT License. There are no API costs, no subscriptions, and no rate limits. You can use the hosted server or run it locally.
+Yes. RivalSearchMCP is free and open source under the MIT License. The core tools do not require paid APIs or subscriptions. The hosted server applies fair-use rate limiting; you can self-host if you need different limits.
 </details>
 
 <details>
 <summary><strong>Do I need API keys?</strong></summary>
 
-No. RivalSearchMCP works completely without any API keys, authentication, or configuration. Just add the URL and use all 10 tools immediately.
+No. RivalSearchMCP works completely without any API keys, authentication, or configuration. Just add the URL and use all 9 tools immediately.
 </details>
 
 <details>

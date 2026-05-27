@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-RivalSearchMCP is an MCP server providing 10 specialized tools for web research, content discovery, and analysis. Built on FastMCP, it offers multi-engine search (Yahoo/DuckDuckGo), website traversal, scientific research, and AI-enhanced research workflows. Ships with Claude Code Agent Skills for standalone CLI usage.
+RivalSearchMCP is an MCP server providing 9 specialized tools for web research, content discovery, and analysis. Built on FastMCP, it offers multi-engine search (Yahoo/DuckDuckGo), website traversal, scientific research, and AI-enhanced research workflows. Ships with Claude Code Agent Skills for standalone CLI usage.
 
 - **100% free**: No API keys required for core functionality
 - **Dual deployment**: Hosted service at `https://RivalSearchMCP.fastmcp.app/mcp` or local development
@@ -193,7 +193,6 @@ All environment variables are optional — the system works without any configur
 - `ENVIRONMENT` - Set to `production` for HTTP transport
 - `PORT` - Server port for HTTP mode (default: 8000)
 - `LOG_LEVEL` - Logging verbosity (default: INFO)
-- `RESEARCH_MEMORY_DIR` - If set, `research_memory` sessions are persisted
   to this filesystem path (otherwise they live in an in-memory MemoryStore
   that doesn't survive server restarts).
 
@@ -227,7 +226,7 @@ Coverage is available via `pytest-cov` but not enforced by default — opt in wi
    - Use pytest-asyncio for async tools
    - Aim for 80%+ coverage
 
-6. **Update README** - Increment tool count if adding new tool (currently 10 total)
+6. **Update README** - Increment tool count if adding new tool (currently 9 total)
 
 7. **Update Agent Skill** - If the new tool should be exposed via the CLI, regenerate:
    ```bash
@@ -237,7 +236,7 @@ Coverage is available via `pytest-cov` but not enforced by default — opt in wi
 
 ## Agent Skills
 
-RivalSearchMCP ships with a Claude Code Agent Skill in `skills/rival-search-mcp/`. This packages all 10 tools as a standalone CLI that agents can invoke directly.
+RivalSearchMCP ships with a Claude Code Agent Skill in `skills/rival-search-mcp/`. This packages all 9 tools as a standalone CLI that agents can invoke directly.
 
 ### Structure
 ```

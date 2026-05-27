@@ -8,11 +8,11 @@
       "name": "rival-search-mcp",
       "source": {
         "source": "local",
-        "path": "./"
+        "path": "./plugins/rival-search-mcp"
       },
       "policy": {
         "installation": "AVAILABLE",
-        "authentication": "NONE"
+        "authentication": "ON_INSTALL"
       },
       "category": "Productivity"
     }
