@@ -1,0 +1,20 @@
+{
+  "name": "rival-search-mcp-marketplace",
+  "interface": {
+    "displayName": "RivalSearch MCP"
+  },
+  "plugins": [
+    {
+      "name": "rival-search-mcp",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "NONE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

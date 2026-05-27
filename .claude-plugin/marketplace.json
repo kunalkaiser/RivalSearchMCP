@@ -1,0 +1,17 @@
+{
+  "name": "rivalsearchmcp",
+  "displayName": "RivalSearch MCP",
+  "description": "Multi-engine research tools for Claude Code — web, social, news, academic, GitHub, and document processing. No API keys.",
+  "plugins": [
+    {
+      "name": "rival-search-mcp",
+      "displayName": "RivalSearch MCP",
+      "description": "9 research tools: 5-engine web search, 9 social platforms, 5 news sources, 5 academic databases, GitHub, website mapping, document analysis, and research topic synthesis. No API keys required.",
+      "source": {
+        "source": "git-subdir",
+        "path": "./"
+      },
+      "categories": ["search", "research", "mcp", "no-auth"]
+    }
+  ]
+}

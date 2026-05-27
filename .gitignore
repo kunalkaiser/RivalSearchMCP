@@ -75,6 +75,8 @@ opencode.json
 # MCP client configuration (contains sensitive tokens)
 .mcp.json
 mcp.json
+# Exception: repo-root .mcp.json is the Codex plugin MCP config, not a user secret
+!/.mcp.json
 
 # Rival Search plugin (lives in its own repo: damionrashford/rival-search)
 rival-search/

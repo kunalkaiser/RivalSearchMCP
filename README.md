@@ -160,6 +160,66 @@ Every tool carries `ToolAnnotations` (`readOnlyHint`, `openWorldHint`, `destruct
 - **`scientific_research`** — academic paper and dataset search. 5 paper providers (OpenAlex, CrossRef, arXiv, PubMed, Europe PMC) and 4 dataset hubs (Kaggle, HuggingFace, Dataverse, Zenodo).
 - **`research_memory`** — persistent research workspaces with `start` / `add` / `get` / `list` / `delete`. Sessions survive reconnects; with `RESEARCH_MEMORY_DIR` set, they also survive server restarts. Dedupes findings by URL automatically.
 
+## Plugins
+
+RivalSearchMCP ships as an installable plugin for both **Claude Code** and **OpenAI Codex**. Installing the plugin auto-registers the MCP server — all 10 tools appear immediately, no manual config needed.
+
+The repo itself is the marketplace. Add it once, install from it forever.
+
+### Claude Code
+
+```bash
+# 1. Add this repo as a marketplace
+/plugin marketplace add damionrashford/RivalSearchMCP
+
+# 2. Install the plugin
+/plugin install rival-search-mcp@rivalsearchmcp
+```
+
+Or in `.claude/settings.json` (project or user scope):
+```json
+{
+  "extraKnownMarketplaces": {
+    "rivalsearchmcp": {
+      "source": {
+        "source": "github",
+        "repo": "damionrashford/RivalSearchMCP"
+      }
+    }
+  }
+}
+```
+Then `/plugin install rival-search-mcp@rivalsearchmcp`.
+
+Once installed, Claude Code sees all 10 tools as `mcp__RivalSearchMCP__*` — no extra configuration.
+
+### OpenAI Codex
+
+```bash
+# 1. Add this repo as a marketplace
+codex plugin marketplace add damionrashford/RivalSearchMCP
+
+# 2. Install the plugin
+codex plugin install rival-search-mcp@rival-search-mcp-marketplace
+```
+
+### Plugin structure
+
+```
+plugins/rival-search-mcp/
+├── .claude-plugin/
+│   └── plugin.json       # Claude Code manifest
+├── .codex-plugin/
+│   └── plugin.json       # Codex manifest
+└── .mcp.json             # Registers https://RivalSearchMCP.fastmcp.app/mcp
+```
+
+Marketplace catalogs at:
+- `.claude-plugin/marketplace.json` — Claude Code
+- `.agents/plugins/marketplace.json` — Codex
+
+---
+
 ## Agent Skills
 
 RivalSearchMCP ships with a **Claude Code Agent Skill** — a self-contained CLI that lets AI agents use all 10 tools without MCP configuration.
