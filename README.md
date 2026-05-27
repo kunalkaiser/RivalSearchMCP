@@ -162,7 +162,10 @@ Every tool carries `ToolAnnotations` (`readOnlyHint`, `openWorldHint`, `destruct
 
 RivalSearchMCP ships as an installable plugin for both **Claude Code** and **OpenAI Codex**. The plugin registers the hosted MCP server at `https://RivalSearchMCP.fastmcp.app/mcp`, so users do not need to clone this repo or run a local server.
 
-The GitHub repo is the plugin marketplace. Add the marketplace once, install the plugin, then ask your agent to use RivalSearchMCP for web, social, news, GitHub, academic, document, and source-quality research.
+The GitHub repo is the plugin marketplace. Add the marketplace once, then install either or both plugins:
+
+- `rival-search-mcp` registers the hosted MCP server and exposes the 9 tools.
+- `rival-search-mcp-skills` installs the standalone agent skill, reference docs, and CLI helpers.
 
 ### Claude Code
 
@@ -174,6 +177,9 @@ claude plugin marketplace add damionrashford/RivalSearchMCP --scope user
 
 # 2. Install the plugin
 claude plugin install rival-search-mcp@rivalsearchmcp --scope user
+
+# Optional: install the skill-only plugin
+claude plugin install rival-search-mcp-skills@rivalsearchmcp --scope user
 ```
 
 Inside Claude Code, the same flow is available with slash commands:
@@ -181,6 +187,7 @@ Inside Claude Code, the same flow is available with slash commands:
 ```text
 /plugin marketplace add damionrashford/RivalSearchMCP
 /plugin install rival-search-mcp@rivalsearchmcp
+/plugin install rival-search-mcp-skills@rivalsearchmcp
 ```
 
 For a team/project install, use `--scope project` instead of `--scope user`, or add the marketplace to `.claude/settings.json`:
@@ -197,7 +204,7 @@ For a team/project install, use `--scope project` instead of `--scope user`, or 
   }
 }
 ```
-Then `/plugin install rival-search-mcp@rivalsearchmcp`.
+Then install one or both plugins with `/plugin install rival-search-mcp@rivalsearchmcp` and `/plugin install rival-search-mcp-skills@rivalsearchmcp`.
 
 Once installed, Claude Code exposes the MCP tools as `mcp__RivalSearchMCP__*`. Example prompts:
 
@@ -215,6 +222,9 @@ codex plugin marketplace add damionrashford/RivalSearchMCP --ref main
 
 # 2. Install the plugin
 codex plugin add rival-search-mcp@rival-search-mcp-marketplace
+
+# Optional: install the skill-only plugin
+codex plugin add rival-search-mcp-skills@rival-search-mcp-marketplace
 ```
 
 Once installed, start or refresh a Codex session and ask Codex to use RivalSearchMCP. Example prompts:
@@ -240,6 +250,14 @@ plugins/rival-search-mcp/
 ├── .codex-plugin/
 │   └── plugin.json       # Codex manifest
 └── .mcp.json             # Registers https://RivalSearchMCP.fastmcp.app/mcp
+
+plugins/rival-search-mcp-skills/
+├── .claude-plugin/
+│   └── plugin.json       # Claude Code skill plugin manifest
+├── .codex-plugin/
+│   └── plugin.json       # Codex skill plugin manifest
+└── skills/
+    └── rival-search-mcp/ # Agent skill, resources, and CLI helper
 ```
 
 Marketplace catalogs at:
@@ -250,6 +268,7 @@ Plugin package:
 - `plugins/rival-search-mcp/.claude-plugin/plugin.json` — Claude Code manifest
 - `plugins/rival-search-mcp/.codex-plugin/plugin.json` — Codex manifest
 - `plugins/rival-search-mcp/.mcp.json` — hosted MCP server registration
+- `plugins/rival-search-mcp-skills/skills/rival-search-mcp/` — standalone agent skill package
 
 ---
 
