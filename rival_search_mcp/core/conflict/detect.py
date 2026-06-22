@@ -314,6 +314,48 @@ _NEGATION_TOKENS = {
     "wouldn't",
 }
 
+# Sentiment keyword sets for bull/bear and positive/negative stance detection.
+# Matched as whole words; multi-word phrases checked as substrings.
+_BULLISH_WORDS: frozenset = frozenset({
+    "bullish", "bull", "long", "buy", "outperform", "overweight",
+    "upside", "rally", "surge", "upgrade", "constructive", "tailwind",
+    "momentum", "optimistic", "opportunity", "favorable", "promising",
+    "confident", "accelerating", "beat", "exceed", "positive",
+})
+_BULLISH_PHRASES: tuple = (
+    "strong buy", "raised target", "higher target", "price target increase",
+)
+
+_BEARISH_WORDS: frozenset = frozenset({
+    "bearish", "bear", "short", "sell", "underperform", "underweight",
+    "downside", "decline", "downgrade", "headwind", "pessimistic",
+    "cautious", "unfavorable", "disappointing", "deteriorat", "decelerat",
+    "miss", "below", "negative", "drop",
+})
+_BEARISH_PHRASES: tuple = (
+    "strong sell", "lowered target", "lower target", "price target cut",
+    "price target decrease",
+)
+
+
+def _sentiment_score(text: str) -> float:
+    """Return a signed sentiment score: positive = bullish, negative = bearish.
+
+    Sums +1 per bullish word/phrase hit and -1 per bearish hit, then
+    normalises by the square root of the word count to dampen length bias.
+    """
+    lc = text.lower()
+    tokens = set(re.findall(r"\b[a-z]+\b", lc))
+
+    score = 0.0
+    score += sum(1 for w in _BULLISH_WORDS if w in tokens)
+    score += sum(1 for p in _BULLISH_PHRASES if p in lc)
+    score -= sum(1 for w in _BEARISH_WORDS if w in tokens)
+    score -= sum(1 for p in _BEARISH_PHRASES if p in lc)
+
+    word_count = max(len(tokens), 1)
+    return score / (word_count ** 0.5)
+
 
 def _has_negation_near(text: str, center_start: int, center_end: int, radius: int = 30) -> bool:
     lo = max(0, center_start - radius)
@@ -329,11 +371,12 @@ def _claim_polarity(text: str, claim: str) -> Optional[bool]:
     Strategy:
       1. Exact-substring match of the full claim -> supported unless a
          negation token sits within 30 chars on either side.
-      2. Otherwise, split the claim into subject + tail on the first
-         content word past "is/are/was/were/has/have". If the subject
-         phrase appears followed by a tail word within ~40 chars AND a
-         negation token sits between them, treat that as an opposing
-         stance ("the vaccine is not safe" opposes "the vaccine is safe").
+      2. Subject + predicate-tail split on copula verbs, checking for
+         inserted negation ("the vaccine is not safe" opposes "is safe").
+      3. Sentiment-vector fallback: if the claim subject appears in the
+         text but strategies 1-2 both return None, classify by net
+         bullish/bearish keyword count. Catches bull/bear opposition that
+         carries no explicit negation tokens.
     """
     if not claim:
         return None
@@ -347,31 +390,40 @@ def _claim_polarity(text: str, claim: str) -> Optional[bool]:
 
     # Strategy 2: subject + predicate-tail, allowing inserted negation
     parts = re.split(r"\b(is|are|was|were|has|have|do|does|did)\b", claim_lc, maxsplit=1)
-    if len(parts) < 3:
-        return None
-    subject = parts[0].strip()
-    copula = parts[1]
-    tail = parts[2].strip()
-    # Find the subject in the source
-    sub_idx = text_lc.find(subject)
-    if sub_idx == -1:
-        return None
-    # Look for the first occurrence of the tail within ~60 chars after the copula
-    window_start = sub_idx + len(subject)
-    window = text_lc[window_start : window_start + 150]
-    if copula not in window:
-        return None
-    copula_idx = window.find(copula) + window_start
-    tail_in_window = text_lc[copula_idx : copula_idx + 100]
-    tail_first_word = (tail.split() or [""])[0]
-    if not tail_first_word or tail_first_word not in tail_in_window:
-        return None
-    tail_idx = tail_in_window.find(tail_first_word) + copula_idx
-    # Negation between copula and tail => opposing stance.
-    between = text_lc[copula_idx:tail_idx]
-    if any(tok in between for tok in _NEGATION_TOKENS):
-        return False
-    return True
+    if len(parts) >= 3:
+        subject = parts[0].strip()
+        copula = parts[1]
+        tail = parts[2].strip()
+        sub_idx = text_lc.find(subject)
+        if sub_idx != -1:
+            window_start = sub_idx + len(subject)
+            window = text_lc[window_start : window_start + 150]
+            if copula in window:
+                copula_idx = window.find(copula) + window_start
+                tail_in_window = text_lc[copula_idx : copula_idx + 100]
+                tail_first_word = (tail.split() or [""])[0]
+                if tail_first_word and tail_first_word in tail_in_window:
+                    tail_idx = tail_in_window.find(tail_first_word) + copula_idx
+                    between = text_lc[copula_idx:tail_idx]
+                    if any(tok in between for tok in _NEGATION_TOKENS):
+                        return False
+                    return True
+
+    # Strategy 3: sentiment-vector fallback for bull/bear and stance language.
+    # Only activates when the claim's first meaningful word is present in the
+    # source (ensures we're talking about the same subject).
+    claim_words = [w for w in re.findall(r"\b[a-z]{3,}\b", claim_lc)
+                   if w not in {"the", "and", "for", "that", "this", "are", "was",
+                                "were", "has", "have", "does", "did", "its", "with"}]
+    if claim_words and any(w in text_lc for w in claim_words[:3]):
+        score = _sentiment_score(text)
+        _SENTIMENT_THRESHOLD = 0.08
+        if score > _SENTIMENT_THRESHOLD:
+            return True
+        if score < -_SENTIMENT_THRESHOLD:
+            return False
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -512,6 +564,64 @@ def _find_date_conflicts(sources: List[str]) -> List[Conflict]:
 
 
 # ---------------------------------------------------------------------------
+# Sentiment conflict detection (claim-free, catches bull/bear opposition)
+# ---------------------------------------------------------------------------
+
+# Minimum absolute sentiment score to classify a source as directional.
+_SENTIMENT_MIN = 0.06
+# Minimum topic-signature overlap to treat two sources as discussing the same subject.
+_SENTIMENT_TOPIC_MIN = 2
+
+
+def _find_sentiment_conflicts(sources: List[str]) -> List[Conflict]:
+    """Detect bull/bear and positive/negative stance conflicts without a claim.
+
+    Scores every source on the bullish/bearish axis. If two sources score in
+    opposite directions AND share enough topic-keyword overlap to be discussing
+    the same subject, emit a POLARITY conflict.
+    """
+    scores: List[float] = [_sentiment_score(s) for s in sources]
+    conflicts: List[Conflict] = []
+
+    for i in range(len(sources)):
+        if abs(scores[i]) < _SENTIMENT_MIN:
+            continue
+        for j in range(i + 1, len(sources)):
+            if abs(scores[j]) < _SENTIMENT_MIN:
+                continue
+            # Opposite directions only.
+            if scores[i] * scores[j] >= 0:
+                continue
+            # Require shared topic vocabulary so we're not comparing apples/oranges.
+            # Use the centre of the text as a proxy anchor (whole-doc signature).
+            mid_i = len(sources[i]) // 2
+            mid_j = len(sources[j]) // 2
+            sig_i = _topic_signature(sources[i], mid_i, mid_i, radius=len(sources[i]) // 2)
+            sig_j = _topic_signature(sources[j], mid_j, mid_j, radius=len(sources[j]) // 2)
+            overlap = sig_i & sig_j
+            if len(overlap) < _SENTIMENT_TOPIC_MIN:
+                continue
+
+            direction_i = "bullish" if scores[i] > 0 else "bearish"
+            direction_j = "bullish" if scores[j] > 0 else "bearish"
+            conf = min(0.9, 0.5 + 0.05 * len(overlap) + 0.1 * (abs(scores[i]) + abs(scores[j])))
+            conflicts.append(
+                Conflict(
+                    type=ConflictType.POLARITY,
+                    topic=" ".join(sorted(overlap)[:5]),
+                    source_a_index=i,
+                    source_b_index=j,
+                    value_a=direction_i,
+                    value_b=direction_j,
+                    context_a=sources[i][:200],
+                    context_b=sources[j][:200],
+                    confidence=round(conf, 2),
+                )
+            )
+    return conflicts
+
+
+# ---------------------------------------------------------------------------
 # Polarity conflict detection (requires a specific claim)
 # ---------------------------------------------------------------------------
 
@@ -564,6 +674,7 @@ def find_conflicts(
     conflicts: List[Conflict] = []
     conflicts.extend(_find_numeric_conflicts(sources))
     conflicts.extend(_find_date_conflicts(sources))
+    conflicts.extend(_find_sentiment_conflicts(sources))
     if claim:
         conflicts.extend(_find_polarity_conflicts(sources, claim))
 
