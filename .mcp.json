@@ -1,7 +1,12 @@
 {
   "mcpServers": {
-    "RivalSearchMCP": {
-      "url": "https://RivalSearchMCP.fastmcp.app/mcp"
+    "rival-search": {
+      "type": "stdio",
+      "command": "/Users/kunal/RivalSearchMCP/.venv/bin/python",
+      "args": ["/Users/kunal/RivalSearchMCP/server.py"],
+      "env": {
+        "ENVIRONMENT": "development"
+      }
     }
   }
 }
